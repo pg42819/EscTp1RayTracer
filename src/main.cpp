@@ -17,6 +17,10 @@
 #include "scene/scene.h"
 #include "scene/sceneloader.h"
 
+void
+scan_row(tracer::scene &SceneMesh, int image_width, int image_height, tracer::camera &cam, tracer::vec3<float> *image,
+         std::mt19937 &gen, std::uniform_real_distribution<float> &distrib, int h);
+
 // Loops through every Face on every object (Geometry) and checks if a ray at the
 // given original and direction will intersect it.
 // Returns true and sets the ID of the object in geomID and face in primID
@@ -156,88 +160,7 @@ int main(int argc, char *argv[]) {
 
     // scan vertically and horizontally for each point in the image window...
     for (int h = image_height - 1; h >= 0; --h) {
-        for (int w = 0; w < image_width; w++) {
-            size_t geomID = -1;
-            size_t primID = -1;
-
-            // is = horizontal fraction, it = vertical fraction of the image
-            auto is = float(w) / (image_width - 1);
-            auto it = float(h) / (image_height - 1);
-
-            // get a ray from the origin pointing to this point on the window
-            auto ray = cam.get_ray(is, it);
-
-            float t = std::numeric_limits<float>::max();
-            float u = 0;
-            float v = 0;
-
-            // if this ray intersects a polygon on the object, get the id of the face and object
-            // and the details of intersection (t, u , v)
-            if (intersect(SceneMesh, ray.origin, ray.dir, t, u, v, geomID, primID)) {
-                auto i = geomID;
-                auto f = primID;
-                auto face = SceneMesh.geometry[i].face_index[f];
-
-                // find the normal vector for the face
-                auto N = normalize(cross(SceneMesh.geometry[i].vertex[face[1]] -
-                                         SceneMesh.geometry[i].vertex[face[0]],
-                                         SceneMesh.geometry[i].vertex[face[2]] -
-                                         SceneMesh.geometry[i].vertex[face[0]]));
-
-                if (!SceneMesh.geometry[i].normals.empty()) {
-                    auto N0 = SceneMesh.geometry[i].normals[face[0]];
-                    auto N1 = SceneMesh.geometry[i].normals[face[1]];
-                    auto N2 = SceneMesh.geometry[i].normals[face[2]];
-                    N = normalize(N1 * u + N2 * v + N0 * (1 - u - v));
-                }
-
-                for (auto &lightID : SceneMesh.light_sources) {
-                    auto light = SceneMesh.geometry[lightID];
-                    light.face_index.size();
-                    std::uniform_int_distribution<int> distrib1(
-                            0, light.face_index.size() - 1);
-
-                    int faceID = distrib1(gen);
-                    const auto &v0 = light.vertex[faceID];
-                    const auto &v1 = light.vertex[faceID];
-                    const auto &v2 = light.vertex[faceID];
-
-                    auto P = v0 + ((v1 - v0) * float(distrib(gen)) +
-                                   (v2 - v0) * float(distrib(gen)));
-
-                    auto hit = ray.origin +
-                               ray.dir * (t - std::numeric_limits<float>::epsilon());
-                    auto L = P - hit;
-
-                    auto len = tracer::length(L);
-
-                    t = len - std::numeric_limits<float>::epsilon();
-
-                    L = tracer::normalize(L);
-
-                    auto mat = SceneMesh.geometry[i].object_material;
-                    auto c =
-                            (mat.ka * 0.5f + mat.ke) / float(SceneMesh.light_sources.size());
-
-                    if (occlusion(SceneMesh, hit, L, t))
-                        continue;
-
-                    auto d = dot(N, L);
-
-                    if (d <= 0)
-                        continue;
-
-                    auto H = normalize((N + L) * 2.f);
-
-                    c = c + (mat.kd * d + mat.ks * pow(dot(N, H), mat.Ns)) /
-                            float(SceneMesh.light_sources.size());
-
-                    image[h * image_width + w].r += c.r;
-                    image[h * image_width + w].g += c.g;
-                    image[h * image_width + w].b += c.b;
-                }
-            }
-        }
+        scan_row(SceneMesh, image_width, image_height, cam, image, gen, distrib, h);
     }
     auto end_time = std::chrono::high_resolution_clock::now();
 
@@ -263,4 +186,96 @@ int main(int argc, char *argv[]) {
     }
     delete[] image;
     return 0;
+}
+
+void
+scan_row(tracer::scene &SceneMesh, int image_width, int image_height, tracer::camera &cam, tracer::vec3<float> *image,
+         std::mt19937 &gen, std::uniform_real_distribution<float> &distrib, int h)
+{
+    for (int w = 0; w < image_width; w++) {
+        size_t geomID = -1;
+        size_t primID = -1;
+
+        // is = horizontal fraction, it = vertical fraction of the image
+        auto is = float(w) / (image_width - 1);
+        auto it = float(h) / (image_height - 1);
+
+        // get a ray from the origin pointing to this point on the window
+        auto ray = cam.get_ray(is, it);
+
+        float t = std::numeric_limits<float>::max();
+        float u = 0;
+        float v = 0;
+
+        // if this ray intersects a polygon on the object, get the id of the face and object
+        // and the details of intersection (t, u , v)
+        if (intersect(SceneMesh, ray.origin, ray.dir, t, u, v, geomID, primID)) {
+            auto i = geomID;
+            auto f = primID;
+            auto face = SceneMesh.geometry[i].face_index[f];
+
+            // find the normal vector for the face
+            auto N = normalize(cross(SceneMesh.geometry[i].vertex[face[1]] -
+                                     SceneMesh.geometry[i].vertex[face[0]],
+                                     SceneMesh.geometry[i].vertex[face[2]] -
+                                     SceneMesh.geometry[i].vertex[face[0]]));
+
+            if (!SceneMesh.geometry[i].normals.empty()) {
+                auto N0 = SceneMesh.geometry[i].normals[face[0]];
+                auto N1 = SceneMesh.geometry[i].normals[face[1]];
+                auto N2 = SceneMesh.geometry[i].normals[face[2]];
+                N = normalize(N1 * u + N2 * v + N0 * (1 - u - v));
+            }
+
+            for (auto &lightID : SceneMesh.light_sources) {
+                auto light = SceneMesh.geometry[lightID];
+                light.face_index.size();
+                std::uniform_int_distribution<int> distrib1(
+                        0, light.face_index.size() - 1);
+
+                // To draw a random variable from the distribution, you use the function call operator()
+                // and pass in an instance of a random number engine, such as a Mersenne Twister.
+                int faceID = distrib1(gen);
+                const auto &v0 = light.vertex[faceID];
+                const auto &v1 = light.vertex[faceID];
+                const auto &v2 = light.vertex[faceID];
+
+                auto P = v0 + ((v1 - v0) * float(distrib(gen)) +
+                               (v2 - v0) * float(distrib(gen)));
+
+                // hit is where along the vector it hits the face
+                auto hit = ray.origin +
+                           ray.dir * (t - std::numeric_limits<float>::epsilon());
+                auto L = P - hit;
+
+                auto len = tracer::length(L);
+
+                t = len - std::numeric_limits<float>::epsilon();
+
+                L = tracer::normalize(L);
+
+                auto mat = SceneMesh.geometry[i].object_material;
+                auto c =
+                        (mat.ka * 0.5f + mat.ke) / float(SceneMesh.light_sources.size());
+
+                if (occlusion(SceneMesh, hit, L, t))
+                    continue;
+
+                auto d = dot(N, L);
+
+                if (d <= 0)
+                    continue;
+
+                auto H = normalize((N + L) * 2.f);
+
+                c = c + (mat.kd * d + mat.ks * pow(dot(N, H), mat.Ns)) /
+                        float(SceneMesh.light_sources.size());
+
+                // set pixel on the result image to the calculated color
+                image[h * image_width + w].r += c.r;
+                image[h * image_width + w].g += c.g;
+                image[h * image_width + w].b += c.b;
+            }
+        }
+    }
 }
