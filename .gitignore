@@ -1,3 +1,11 @@
 # Project exclude paths
 /cmake-build-debug/
 /CMakeFiles/
+/src/CMakeFiles/
+/src/cmake_install.cmake
+/src/Makefile
+/Testing/Temporary/LastTest.log
+/cmake_install.cmake
+/CMakeCache.txt
+/Makefile
+/bin/
