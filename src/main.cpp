@@ -158,9 +158,25 @@ int main(int argc, char *argv[]) {
     std::mt19937 gen(rd());
     std::uniform_real_distribution<float> distrib(0, 1.f);
 
+
+    // create a vector for futures
+    std::vector<std::future<void>> row_tasks;
+
     // scan vertically and horizontally for each point in the image window...
     for (int h = image_height - 1; h >= 0; --h) {
+        // trace rays on a single row in the image window
         scan_row(SceneMesh, image_width, image_height, cam, image, gen, distrib, h);
+
+        // Create new async tasks and store in the vector
+        // TODO This does not compile at the momement - tried clang and gcc and both complain
+        //      about the signature of the async method - maybe the reference types cannot be used?
+        // when we get this working, comment out the scan_row above and uncomment this one.
+//        row_tasks.emplace_back(std::async(std::launch::async, scan_row,
+//            SceneMesh, image_width, image_height, cam, image, gen, distrib, h);
+    }
+
+    for(auto& task : row_tasks) {
+        task.get();
     }
     auto end_time = std::chrono::high_resolution_clock::now();
 
@@ -189,7 +205,8 @@ int main(int argc, char *argv[]) {
 }
 
 void
-scan_row(tracer::scene &SceneMesh, int image_width, int image_height, tracer::camera &cam, tracer::vec3<float> *image,
+scan_row(tracer::scene &SceneMesh, int image_width, int image_height, tracer::camera &cam,
+         tracer::vec3<float> *image,
          std::mt19937 &gen, std::uniform_real_distribution<float> &distrib, int h)
 {
     for (int w = 0; w < image_width; w++) {

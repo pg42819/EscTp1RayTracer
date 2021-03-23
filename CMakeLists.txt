@@ -1,6 +1,18 @@
 cmake_minimum_required(VERSION 3.17)
 #cmake_minimum_required(VERSION 3.19)
-project(RTracer C CXX ISPC)
+
+# https://stackoverflow.com/questions/24380456/how-can-i-make-cmake-use-gcc-instead-of-clang-on-mac-os-x#
+# Uncomment to force GCC (local to chris's system) instead of default clang
+#set(CMAKE_C_COMPILER "/usr/local/bin/gcc-10")
+#set(CMAKE_CXX_COMPILER "/usr/local/bin/gcc-10")
+#set(CMAKE_ISPC_COMPILER "/usr/local/bin/ispc")
+
+# see the compiler line verbose
+set(CMAKE_VERBOSE_MAKEFILE ON)
+
+
+project(RTracer CXX)
+#project(RTracer C CXX ISPC)
 
 if (POLICY CMP0074)
     cmake_policy(SET CMP0074 NEW) # since 3.12
@@ -12,8 +24,9 @@ endif ()
 set(CMAKE_CXX_STANDARD 17)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS ON)
-
+set(CMAKE_CXX_COMPILER_ID GNU)
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} ${PROJECT_SOURCE_DIR}/cmake)
+#include(cmake/gcc.cmake)
 include(cmake/config.cmake)
 include(cmake/ispc.cmake)
 
