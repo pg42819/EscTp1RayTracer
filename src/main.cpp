@@ -166,7 +166,9 @@ int main(int argc, char *argv[]) {
     // scan vertically and horizontally for each point in the image window...
     for (int h = image_height - 1; h >= 0; --h) {
         // trace rays on a single row in the image window
-        //threads.push_back(std::thread(scan_row,SceneMesh, image_width, image_height, cam, image, gen, distrib, h));
+        threads.push_back(std::thread(scan_row,std::ref(SceneMesh), image_width, image_height, std::ref(cam), image, std::ref(gen), std::ref(distrib), h));
+        
+        //scan_row(SceneMesh, image_width, image_height, cam, image, gen, distrib, h);
 
         // Create new async tasks and store in the vector
         // TODO This does not compile at the momement - tried clang and gcc and both complain
