@@ -1,4 +1,3 @@
-
 #include <chrono>
 #include <cstring>
 #include <filesystem>
@@ -153,6 +152,8 @@ int main(int argc, char *argv[]) {
 
     auto start_time = std::chrono::high_resolution_clock::now();
 
+    // START HERE
+
     std::vector<std::thread> threads;
     std::random_device rd;
     std::mt19937 gen(rd());
@@ -165,14 +166,18 @@ int main(int argc, char *argv[]) {
     // scan vertically and horizontally for each point in the image window...
     for (int h = image_height - 1; h >= 0; --h) {
         // trace rays on a single row in the image window
-        scan_row(SceneMesh, image_width, image_height, cam, image, gen, distrib, h);
+        //threads.push_back(std::thread(scan_row,SceneMesh, image_width, image_height, cam, image, gen, distrib, h));
 
         // Create new async tasks and store in the vector
         // TODO This does not compile at the momement - tried clang and gcc and both complain
         //      about the signature of the async method - maybe the reference types cannot be used?
         // when we get this working, comment out the scan_row above and uncomment this one.
-//        row_tasks.emplace_back(std::async(std::launch::async, scan_row,
+//        row_tasks.emplace_back(std::launch::async, scan_row,
 //            SceneMesh, image_width, image_height, cam, image, gen, distrib, h);
+    }
+
+    for(auto &thr : threads) {
+        thr.join();
     }
 
     for(auto& task : row_tasks) {
