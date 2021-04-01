@@ -62,11 +62,19 @@ int main(int argc, char *argv[]) {
     std::string modelname;
     std::string outputname = "output.ppm";
     bool hasEye{false}, hasLook{false};
+    bool threaded{false};
     tracer::vec3<float> eye(0, 1, 3), look(0, 1, 0);
     tracer::vec2<uint> windowSize(1024, 768);
 
     // command line arguments
     for (int arg = 0; arg < argc; arg++) {
+
+        // --thread selects the threaded model
+        if (std::string(argv[arg]) == "--thread") {
+            threaded = true;
+            continue;
+        }
+
         // -m model.obj : path to the model file
         if (std::string(argv[arg]) == "-m") {
             modelname = std::string(argv[arg + 1]);
@@ -165,26 +173,22 @@ int main(int argc, char *argv[]) {
 
     // scan vertically and horizontally for each point in the image window...
     for (int h = image_height - 1; h >= 0; --h) {
-        // trace rays on a single row in the image window
-        threads.push_back(std::thread(scan_row,std::ref(SceneMesh), image_width, image_height, std::ref(cam), image, std::ref(gen), std::ref(distrib), h));
-        
-        //scan_row(SceneMesh, image_width, image_height, cam, image, gen, distrib, h);
-
-        // Create new async tasks and store in the vector
-        // TODO This does not compile at the momement - tried clang and gcc and both complain
-        //      about the signature of the async method - maybe the reference types cannot be used?
-        // when we get this working, comment out the scan_row above and uncomment this one.
-//        row_tasks.emplace_back(std::launch::async, scan_row,
-//            SceneMesh, image_width, image_height, cam, image, gen, distrib, h);
+        if (threaded) {
+            // trace rays on a single row in the image window
+            threads.push_back(std::thread(scan_row, std::ref(SceneMesh), image_width, image_height,
+                                          std::ref(cam), image, std::ref(gen), std::ref(distrib), h));
+        }
+        else {
+            scan_row(SceneMesh, image_width, image_height, cam, image, gen, distrib, h);
+        }
     }
 
-    for(auto &thr : threads) {
-        thr.join();
+    if (threaded) {
+        for (auto &thr : threads) {
+            thr.join();
+        }
     }
 
-    for(auto& task : row_tasks) {
-        task.get();
-    }
     auto end_time = std::chrono::high_resolution_clock::now();
 
     std::cerr << "\n\n Duration : "
