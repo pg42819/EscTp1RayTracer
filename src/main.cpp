@@ -278,6 +278,7 @@ scan_row(tracer::scene &SceneMesh, int image_width, int image_height, tracer::ca
 
                 auto len = tracer::length(L);
 
+                // 191 original: check time of flight to see if we have hit occlusion
                 t = len - std::numeric_limits<float>::epsilon();
 
                 L = tracer::normalize(L);

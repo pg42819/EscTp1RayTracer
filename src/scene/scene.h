@@ -18,14 +18,15 @@ struct scene {
   struct Geometry {
     std::vector<tracer::vec3<float> > vertex;
     std::vector<tracer::vec3<float> > normals;
-    std::vector<tracer::vec4<float> > vertex_color;
-    std::vector<tracer::vec2<float> > uv;
-    std::vector<tracer::vec3<unsigned int> > face_index;
+    std::vector<tracer::vec4<float> > vertex_color; // not used
+    std::vector<tracer::vec2<float> > uv; // not used
+    std::vector<tracer::vec3<unsigned int> > face_index; // order of vertices for triangle
     std::vector<Material> face_material;
     Material object_material;
     unsigned int geomID;
   };
 
+  // before ispc convert this into a flat array of vertices
   std::vector<Geometry> geometry;
   std::vector<size_t> light_sources;
 };
