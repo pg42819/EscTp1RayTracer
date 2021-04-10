@@ -4,7 +4,7 @@
 #include "bvh.h"
 
 void flattenGeom(tracer::scene &SceneMesh) {
-    std::vector<float> triangles;
+    std::vector<triangle> triangles;
 
     for(auto i = 0; i < SceneMesh.geometry.size(); i++) {
         for(auto j = 0; j < SceneMesh.geometry[i].face_index.size(); j++) {
@@ -26,4 +26,7 @@ void flattenGeom(tracer::scene &SceneMesh) {
             triangles.push_back(t);
         }
     }
+
+    //TODO
+    //ADD TRIANGLE VECTOR TO SCENEMESH
 }
