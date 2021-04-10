@@ -63,6 +63,7 @@ int main(int argc, char *argv[]) {
     std::string outputname = "output.ppm";
     bool hasEye{false}, hasLook{false};
     bool threaded{false};
+    bool flat{false};
     tracer::vec3<float> eye(0, 1, 3), look(0, 1, 0);
     tracer::vec2<uint> windowSize(1024, 768);
 
@@ -72,6 +73,12 @@ int main(int argc, char *argv[]) {
         // --thread selects the threaded model
         if (std::string(argv[arg]) == "--thread") {
             threaded = true;
+            continue;
+        }
+
+        // --flat flattens the scenemesh into triangles
+        if (std::string(argv[arg]) == "--flat") {
+            flat = true;
             continue;
         }
 
@@ -158,18 +165,20 @@ int main(int argc, char *argv[]) {
     tracer::vec3<float> *image =
             new tracer::vec3<float>[image_height * image_width];
 
+    // flatten if needed
+    if (flat) {
+        flatten_scene(SceneMesh);
+    }
+
+    // start the clock!
     auto start_time = std::chrono::high_resolution_clock::now();
 
     // START HERE
-
     std::vector<std::thread> threads;
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_real_distribution<float> distrib(0, 1.f);
 
-
-    // create a vector for futures
-    std::vector<std::future<void>> row_tasks;
 
     // scan vertically and horizontally for each point in the image window...
     for (int h = image_height - 1; h >= 0; --h) {
@@ -234,6 +243,8 @@ scan_row(tracer::scene &SceneMesh, int image_width, int image_height, tracer::ca
         float t = std::numeric_limits<float>::max();
         float u = 0;
         float v = 0;
+
+        // ispc : before we call intersect, convert the scenemesh into an array of triangles
 
         // if this ray intersects a polygon on the object, get the id of the face and object
         // and the details of intersection (t, u , v)
