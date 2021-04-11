@@ -1,3 +1,4 @@
+#include <algorithm>
 #include <src/scene/scene.h>
 #include "flatten.h"
 #include "c_vec.h"
