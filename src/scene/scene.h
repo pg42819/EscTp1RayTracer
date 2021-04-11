@@ -36,6 +36,6 @@ struct scene {
 
   // array of c structures for simple triangles to represent geometry
   c_triangle *c_triangles;
-  int num_triangles;
+  int num_triangles = 0;
 };
 } // namespace tracer

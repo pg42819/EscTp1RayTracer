@@ -6,8 +6,11 @@ find_package(Threads REQUIRED)
 
 set(SRC_FILES 
     scene/sceneloader.cpp
-    main.cpp
-        ispc/intersect.ispc intersect.h simplify/flatten.cpp simplify/flatten.h)
+        simplify/flatten.cpp simplify/flatten.h
+        simplify/c_triangle.c simplify/c_vec.c
+        ispc/intersect.ispc intersect.h
+        main.cpp
+        )
 set(HDR_FILES )
 
 add_executable(ESCViewer2021 ${SRC_FILES} )
@@ -32,7 +35,7 @@ target_compile_definitions(ESCViewer2021 PUBLIC USE_BVH)
 
 endif(USE_BVH)
 
-target_link_directories(ESCViewer2021 PRIVATE <TARGET_FILE_DIR:lib>)
+#target_link_directories(ESCViewer2021 PRIVATE <TARGET_FILE_DIR:lib>)
 target_link_libraries(ESCViewer2021 PUBLIC Threads::Threads)
 # jsoncpp_lib
 # )
