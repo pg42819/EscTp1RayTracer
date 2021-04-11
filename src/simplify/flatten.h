@@ -1,6 +1,9 @@
 #pragma once
 #include "../scene/scene.h"
 #include "../math/vec.h"
+#ifdef __cplusplus
+extern "C" {
+#endif
 
 /**
  * Flatten the geometry objects into a continous array of triangles
@@ -9,3 +12,6 @@
 extern void flatten_scene(tracer::scene &SceneMesh);
 
 extern c_vec3f cpp_vec_to_c_vec(const tracer::vec3<float> &cpp_vec);
+#ifdef __cplusplus
+}
+#endif

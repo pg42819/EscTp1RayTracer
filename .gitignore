@@ -11,3 +11,4 @@
 CMakeCache.txt
 /cmake-build-default/
 /.vscode/settings.json
+/output/

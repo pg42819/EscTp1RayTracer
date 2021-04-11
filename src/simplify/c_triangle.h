@@ -20,5 +20,12 @@ typedef struct {
 } c_triangle;
 
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 extern bool c_intersect_triangle(c_vec3f orig, c_vec3f dir, c_triangle *triangle,
                                  float *t, float *u, float *v);
+#ifdef __cplusplus
+}
+#endif

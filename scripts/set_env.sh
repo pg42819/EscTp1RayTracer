@@ -7,7 +7,7 @@ if [ -z "$PROJECT_HOME" ]; then
 fi
 
 export PROJECT_DATA_DIR=${PROJECT_HOME}/data
-export PROJECT_OUT_DIR=${PROJECT_HOME}/outdata
+export PROJECT_OUT_DIR=${PROJECT_HOME}/output
 export PROJECT_TEST_DIR=${PROJECT_HOME}/testdata
 export PROJECT_METRICS_DIR=${PROJECT_HOME}/reports
 export PROJECT_BIN_DIR=${PROJECT_HOME}/bin
