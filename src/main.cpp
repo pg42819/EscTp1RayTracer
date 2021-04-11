@@ -9,24 +9,87 @@
 #include <string>
 #include <thread>
 #include <type_traits>
-
+#include <float.h>
 #include "math/vec.h"
 #include "scene/camera.h"
 #include "scene/ray_triangle.h"
 #include "scene/scene.h"
 #include "scene/sceneloader.h"
+#include "simplify/c_triangle.h"
+#include "simplify/flatten.h"
 
 void
 scan_row(tracer::scene &SceneMesh, int image_width, int image_height, tracer::camera &cam, tracer::vec3<float> *image,
          std::mt19937 &gen, std::uniform_real_distribution<float> &distrib, int h);
 
+bool c_intersect_triangle(c_vec3f orig, c_vec3f dir, c_triangle *triangle,
+                          float *t, float *u, float *v)
+{
+    c_vec3f edge1, edge2, tvec, pvec, qvec;
+    double determinant, inverse_determinant;
+    c_vec3f vert0 = triangle->vertices[0];
+    c_vec3f vert1 = triangle->vertices[1];
+    c_vec3f vert2 = triangle->vertices[2];
+
+    /* find vectors for two edges sharing vert0 */
+    //    edge1 = vert1 - vert0;
+    edge1 = vec3f_subtract(vert1, vert0);
+    //    edge2 = vert2 - vert0;
+    edge2 = vec3f_subtract(vert2, vert0);
+
+    /* begin calculating determinant - also used to calculate U parameter */
+    /* pvec is normal to the ray direction and one edge */
+    pvec = vec3f_cross(dir, edge2);
+    determinant = vec3f_dot(edge1, pvec);
+
+    /* if determinant is near zero, ray lies in plane of triangle */
+    if (determinant > -DBL_EPSILON && determinant < DBL_EPSILON) {
+        return false;
+    }
+
+    inverse_determinant = 1.0f / determinant;
+
+    /* calculate distance from vert0 to ray origin */
+    // tvec = orig - vert0;
+    tvec = vec3f_subtract(orig, vert0);
+
+    /* calculate U parameter and test bounds */
+    double u2 = vec3f_dot(tvec, pvec) * inverse_determinant;
+    if (u2 < DBL_EPSILON || u2 > 1.0f) {
+        return false;
+    }
+
+    /* prepare to test V parameter */
+    qvec = vec3f_cross(tvec, edge1);
+
+    /* calculate V parameter and test bounds */
+    double v2 = vec3f_dot(dir, qvec) * inverse_determinant;
+    if (v2 < DBL_EPSILON  || u2 + v2 > 1.0f) {
+        return false;
+    }
+
+    /* calculate t, ray intersects triangle */
+    double t2 = vec3f_dot(edge2, qvec) * inverse_determinant;
+    if (t2 < DBL_EPSILON) {
+        return false;
+    }
+    if (t2 >= *t) {
+        return false;
+    }
+    *t = t2;
+    *u = u2;
+    *v = v2;
+
+    return true;
+}
+
 // Loops through every Face on every object (Geometry) and checks if a ray at the
 // given original and direction will intersect it.
 // Returns true and sets the ID of the object in geomID and face in primID
-bool intersect(const tracer::scene &SceneMesh, const tracer::vec3<float> &ori,
-               const tracer::vec3<float> &dir, float &t, float &u, float &v,
-               size_t &geomID, size_t &primID) {
-  for (auto i = 0; i < SceneMesh.geometry.size(); i++) {
+bool cpp_intersect(const tracer::scene &SceneMesh, const tracer::vec3<float> &ori,
+                   const tracer::vec3<float> &dir, float &t, float &u, float &v,
+                   size_t &geomID, size_t &primID) {
+    for (auto i = 0; i < SceneMesh.geometry.size(); i++) {
     for (auto f = 0; f < SceneMesh.geometry[i].face_index.size(); f++) {
       auto face = SceneMesh.geometry[i].face_index[f];
       if (tracer::intersect_triangle(
@@ -39,6 +102,45 @@ bool intersect(const tracer::scene &SceneMesh, const tracer::vec3<float> &ori,
     }
   }
   return (geomID != -1 && primID != -1);
+}
+
+// Loops through every Face on every object (Geometry) and checks if a ray at the
+// given original and direction will intersect it.
+// Returns true and sets the ID of the object in geomID and face in primID
+bool c_intersect(const tracer::scene &SceneMesh, const tracer::vec3<float> &ori,
+                 const tracer::vec3<float> &dir, float &t, float &u, float &v,
+                 size_t &geomID, size_t &primID) {
+    c_triangle *triangles = SceneMesh.c_triangles;
+    c_vec3f c_origin = cpp_vec_to_c_vec(ori);
+    c_vec3f c_direction = cpp_vec_to_c_vec(dir);
+    for (auto i = 0; i < SceneMesh.num_triangles; i++) {
+        c_triangle triangle = triangles[i];
+        float *t_ptr = &t;
+        float *u_ptr = &u;
+        float *v_ptr = &v;
+        if (c_intersect_triangle(c_origin, c_direction, &triangle, t_ptr, u_ptr, v_ptr)) {
+            geomID = triangle.geom_id;
+            primID = triangle.prim_id;
+            // keep looping even if we hit a triangle in case we hit another one
+            // at a later value of t
+        }
+    }
+    return (geomID != -1 && primID != -1);
+}
+
+// Loops through every Face on every object (Geometry) and checks if a ray at the
+// given original and direction will intersect it.
+// Returns true and sets the ID of the object in geomID and face in primID
+bool intersect(const tracer::scene &SceneMesh, const tracer::vec3<float> &ori,
+               const tracer::vec3<float> &dir, float &t, float &u, float &v,
+               size_t &geomID, size_t &primID) {
+    if (SceneMesh.num_triangles > 0) {
+        // scene has flattened triangles, use the c_intersect method
+        return c_intersect(SceneMesh, ori, dir, t, v, v, geomID, primID);
+    }
+    else {
+        return cpp_intersect(SceneMesh, ori, dir, t, v, v, geomID, primID);
+    }
 }
 
 bool occlusion(const tracer::scene &SceneMesh, const tracer::vec3<float> &ori,
@@ -63,6 +165,7 @@ int main(int argc, char *argv[]) {
     std::string outputname = "output.ppm";
     bool hasEye{false}, hasLook{false};
     bool threaded{false};
+    bool flat{false};
     tracer::vec3<float> eye(0, 1, 3), look(0, 1, 0);
     tracer::vec2<uint> windowSize(1024, 768);
 
@@ -72,6 +175,12 @@ int main(int argc, char *argv[]) {
         // --thread selects the threaded model
         if (std::string(argv[arg]) == "--thread") {
             threaded = true;
+            continue;
+        }
+
+        // --flat flattens the scenemesh into triangles
+        if (std::string(argv[arg]) == "--flat") {
+            flat = true;
             continue;
         }
 
@@ -116,7 +225,7 @@ int main(int argc, char *argv[]) {
             }
 
             if (i != 3)
-                throw std::runtime_error("Error parsing view");
+                throw std::runtime_error("Error parsing look");
             hasLook = true;
             arg++;
             continue;
@@ -138,6 +247,11 @@ int main(int argc, char *argv[]) {
             arg++;
             continue;
         }
+
+        if (arg > 0) { // arg==0 is the program so ignore it - anything else that gets here is unexpected
+            std::string error = std::string("Invalid Argument: ") + argv[arg];
+            throw std::runtime_error(error);
+        }
     }
 
     tracer::scene SceneMesh;
@@ -158,18 +272,20 @@ int main(int argc, char *argv[]) {
     tracer::vec3<float> *image =
             new tracer::vec3<float>[image_height * image_width];
 
+    // flatten if needed
+    if (flat) {
+        flatten_scene(SceneMesh);
+    }
+
+    // start the clock!
     auto start_time = std::chrono::high_resolution_clock::now();
 
     // START HERE
-
     std::vector<std::thread> threads;
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_real_distribution<float> distrib(0, 1.f);
 
-
-    // create a vector for futures
-    std::vector<std::future<void>> row_tasks;
 
     // scan vertically and horizontally for each point in the image window...
     for (int h = image_height - 1; h >= 0; --h) {
@@ -191,7 +307,9 @@ int main(int argc, char *argv[]) {
 
     auto end_time = std::chrono::high_resolution_clock::now();
 
-    std::cerr << "\n\n Duration : "
+    std::cerr << "\n Threaded  : " << std::boolalpha << threaded << std::endl;
+    std::cerr <<   " Flattened : " << std::boolalpha << flat << std::endl;
+    std::cerr << "\n Duration  : "
               << std::chrono::duration_cast<std::chrono::milliseconds>(end_time -
                                                                        start_time)
                       .count()
@@ -234,6 +352,8 @@ scan_row(tracer::scene &SceneMesh, int image_width, int image_height, tracer::ca
         float t = std::numeric_limits<float>::max();
         float u = 0;
         float v = 0;
+
+        // ispc : before we call intersect, convert the scenemesh into an array of triangles
 
         // if this ray intersects a polygon on the object, get the id of the face and object
         // and the details of intersection (t, u , v)
