@@ -7,7 +7,7 @@ find_package(Threads REQUIRED)
 set(SRC_FILES 
     scene/sceneloader.cpp
     main.cpp
-)
+        ispc/intersect.ispc intersect.h simplify/flatten.cpp simplify/flatten.h)
 set(HDR_FILES )
 
 add_executable(ESCViewer2021 ${SRC_FILES} )

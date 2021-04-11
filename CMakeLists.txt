@@ -1,5 +1,5 @@
-cmake_minimum_required(VERSION 3.17)
-#cmake_minimum_required(VERSION 3.19)
+#cmake_minimum_required(VERSION 3.17)
+cmake_minimum_required(VERSION 3.19)
 
 # https://stackoverflow.com/questions/24380456/how-can-i-make-cmake-use-gcc-instead-of-clang-on-mac-os-x#
 # Uncomment to force GCC (local to chris's system) instead of default clang
@@ -11,8 +11,8 @@ cmake_minimum_required(VERSION 3.17)
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
 
-project(RTracer CXX)
-#project(RTracer C CXX ISPC)
+#project(RTracer CXX)
+project(RTracer C CXX ISPC)
 
 if (POLICY CMP0074)
     cmake_policy(SET CMP0074 NEW) # since 3.12
