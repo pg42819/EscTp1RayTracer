@@ -22,3 +22,6 @@ void fooIspc(varying float f)
 
 //    fooCpp(.....);
 }
+
+//bool ispc_intersect_triangle(uniform c_vec3f orig, uniform c_vec3f dir, uniform c_triangle *triangle,
+//                             uniform float *t, float *u, float *v)

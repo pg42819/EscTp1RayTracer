@@ -44,27 +44,48 @@ bool cpp_intersect(const tracer::scene &SceneMesh, const tracer::vec3<float> &or
   return (geomID != -1 && primID != -1);
 }
 
+void c_intersect_triangles(c_triangle *triangles, int num_triangles,
+                           c_vec3f origin, c_vec3f direction,
+                           float *near_t_ptr, float *u_ptr, float *v_ptr,
+                           int *geom_id, int *prim_id)
+{
+    for (auto i = 0; i < num_triangles; i++) {
+        c_triangle triangle = triangles[i];
+        // note that near_t_ptr keeps track of the shortest time-of-flight to hit a triangle:
+        // intersect will only return true if it hits a triangle at t < *near_t_ptr
+        if (c_intersect_triangle(origin, direction, &triangle, near_t_ptr, u_ptr, v_ptr)) {
+            *geom_id = triangle.geom_id;
+            *prim_id = triangle.prim_id;
+            // keep looping even if we hit a triangle in case we hit another one
+            // that is closer to the ray origin (ie with a smaller value of  later value of t)
+        }
+    }
+}
+
 // Loops through every Face on every object (Geometry) and checks if a ray at the
 // given original and direction will intersect it.
 // Returns true and sets the ID of the object in geomID and face in primID
-bool c_intersect(const tracer::scene &SceneMesh, const tracer::vec3<float> &ori,
-                 const tracer::vec3<float> &dir, float &t, float &u, float &v,
-                 size_t &geomID, size_t &primID) {
-    c_triangle *triangles = SceneMesh.c_triangles;
+bool call_c_intersect(const tracer::scene &SceneMesh, const tracer::vec3<float> &ori,
+                      const tracer::vec3<float> &dir, float &t, float &u, float &v,
+                      size_t &geomID, size_t &primID)
+{
     c_vec3f c_origin = cpp_vec_to_c_vec(ori);
     c_vec3f c_direction = cpp_vec_to_c_vec(dir);
-    for (auto i = 0; i < SceneMesh.num_triangles; i++) {
-        c_triangle triangle = triangles[i];
-        float *t_ptr = &t;
-        float *u_ptr = &u;
-        float *v_ptr = &v;
-        if (c_intersect_triangle(c_origin, c_direction, &triangle, t_ptr, u_ptr, v_ptr)) {
-            geomID = triangle.geom_id;
-            primID = triangle.prim_id;
-            // keep looping even if we hit a triangle in case we hit another one
-            // at a later value of t
-        }
-    }
+    // create new t, u, v for returning values from callee
+    float c_t = t;
+    float c_u = u;
+    float c_v = v;
+    int geom_id = -1;
+    int prim_id = -1;
+    c_intersect_triangles(SceneMesh.c_triangles, SceneMesh.num_triangles, c_origin, c_direction,
+                          &c_t, &c_u, &c_v, &geom_id, &prim_id);
+    t = c_t;
+    u = c_u;
+    v = c_v;
+    geomID = geom_id;
+    primID = prim_id;
+
+    // return true if we hit a triangle
     return (geomID != -1 && primID != -1);
 }
 
@@ -76,7 +97,7 @@ bool intersect(const tracer::scene &SceneMesh, const tracer::vec3<float> &ori,
                size_t &geomID, size_t &primID) {
     if (SceneMesh.num_triangles > 0) {
         // scene has flattened triangles, use the c_intersect method
-        return c_intersect(SceneMesh, ori, dir, t, v, v, geomID, primID);
+        return call_c_intersect(SceneMesh, ori, dir, t, v, v, geomID, primID);
     }
     else {
         return cpp_intersect(SceneMesh, ori, dir, t, v, v, geomID, primID);
@@ -269,6 +290,8 @@ int main(int argc, char *argv[]) {
                  << int(img.b * 255) << "\n";
         }
     }
+
+    std::cout <<   "Rendered image in: " << outputname << std::endl;
     delete[] image;
     return 0;
 }

@@ -1,6 +1,6 @@
 #pragma once
 
-#include "helpful.h"
+//#include "helpful.h"
 #include "aabb.h"
 #include "scene.h"
 #include "../simplify/c_vec.h"
