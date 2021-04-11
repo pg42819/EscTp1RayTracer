@@ -12,7 +12,7 @@ void flattenGeom(tracer::scene &SceneMesh) {
             t.primitiveID = i;
             t.objID = j;
 
-            tracer::vec3<unsigned int> &face = c.x = SceneMesh.geometry[i].face_index[j];
+            tracer::vec3<unsigned int> &face = SceneMesh.geometry[i].face_index[j];
             for(auto k = 0; k < 3; k++) {
                 tracer::vec3<float> c;
 
@@ -30,3 +30,5 @@ void flattenGeom(tracer::scene &SceneMesh) {
     //TODO
     //ADD TRIANGLE VECTOR TO SCENEMESH
 }
+
+ 
