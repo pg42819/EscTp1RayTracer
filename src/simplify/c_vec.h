@@ -78,6 +78,15 @@ extern float vec3f_magnitude(c_vec3f a);
  */
 extern c_vec3f vec3f_normalize(c_vec3f a);
 
+/**
+ * Inverse of a vector
+ * formula v = v1 ^ (-1)
+ * v.x = 1 / v1.x
+ * v.y = 1 / v1.y
+ * v.z = 1 / v1.z
+ */
+extern c_vec3f inverseVector(c_vec3f a);
+
 #ifdef __cplusplus
 }
 #endif

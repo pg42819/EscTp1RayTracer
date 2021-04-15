@@ -17,11 +17,115 @@
 #include "scene/sceneloader.h"
 #include "simplify/c_triangle.h"
 #include "simplify/flatten.h"
+#include "scene/aabb.h"
+#include "scene/bvh.h"
 
 void
 scan_row(tracer::scene &SceneMesh, int image_width, int image_height, tracer::camera &cam, tracer::vec3<float> *image,
          std::mt19937 &gen, std::uniform_real_distribution<float> &distrib, int h);
 
+
+c_vec3f vec3ToCVec3(tracer::vec3<float> input) {
+    c_vec3f r;
+
+    r.x = input.x;
+    r.y = input.y;
+    r.z = input.z;
+
+    return r;
+}
+
+aabb computeMaxBox(const c_triangle *c_triangles, int begin, int end) {
+    c_vec3f minVertex, maxVertex;
+
+    minVertex = new_vec3f(INT_MAX,INT_MAX,INT_MAX);
+    maxVertex = new_vec3f(INT_MIN,INT_MIN,INT_MIN);
+
+    if(begin == end) {
+        int i;
+
+        for(i = 0; i < 3; i++) {
+            if(c_triangles[begin].vertices[i].x > maxVertex.x)
+                maxVertex.x = c_triangles[begin].vertices[i].x;
+            if(c_triangles[begin].vertices[i].y > maxVertex.y)
+                maxVertex.y = c_triangles[begin].vertices[i].y;
+            if(c_triangles[begin].vertices[i].z > maxVertex.z)
+                maxVertex.z = c_triangles[begin].vertices[i].z;
+            
+            if(c_triangles[begin].vertices[i].x < minVertex.x)
+                minVertex.x = c_triangles[begin].vertices[i].x;
+            if(c_triangles[begin].vertices[i].y > minVertex.y)
+                minVertex.y = c_triangles[begin].vertices[i].y;
+            if(c_triangles[begin].vertices[i].z > minVertex.z)
+                minVertex.z = c_triangles[begin].vertices[i].z;
+        }
+
+    }
+    else {
+        int w, j;
+
+        for(w = begin; w <= end; w++) {
+            for(j = 0; j < 3; j++) {
+                if(c_triangles[w].vertices[j].x > maxVertex.x)
+                maxVertex.x = c_triangles[w].vertices[j].x;
+                if(c_triangles[w].vertices[j].y > maxVertex.y)
+                    maxVertex.y = c_triangles[w].vertices[j].y;
+                if(c_triangles[w].vertices[j].z > maxVertex.z)
+                    maxVertex.z = c_triangles[w].vertices[j].z;
+                
+                if(c_triangles[w].vertices[j].x < minVertex.x)
+                    minVertex.x = c_triangles[w].vertices[j].x;
+                if(c_triangles[w].vertices[j].y > minVertex.y)
+                    minVertex.y = c_triangles[w].vertices[j].y;
+                if(c_triangles[w].vertices[j].z > minVertex.z)
+                    minVertex.z = c_triangles[w].vertices[j].z;
+            }
+        }
+
+    }
+
+    return aabb(minVertex, maxVertex);
+
+}
+
+bvh_node * buildBVH(bvh_node *tree, const tracer::scene &SceneMesh, int begin, int end) {
+    
+    int middle = 0;
+    middle += begin + (end-begin) / 2;
+
+    if(begin == end) {
+
+        aabb box = computeMaxBox(SceneMesh.c_triangles, begin, begin);
+
+        tree->bbox = box;
+
+        tree->primitive_count = end - begin + 1;
+
+        tree->start = begin;
+
+        tree->left = NULL;
+        tree->right = NULL;
+
+    } else {
+        aabb box = computeMaxBox(SceneMesh.c_triangles, begin, end);
+
+        tree->bbox = box;
+
+        tree->primitive_count = end - begin + 1;
+
+        tree->start = begin;
+
+        tree->left = (bvh_node *)malloc(sizeof(struct bvh_node));
+        tree->right = (bvh_node *)malloc(sizeof(struct bvh_node));
+        tree->left = buildBVH(tree->left, SceneMesh, begin, middle);
+        tree->right = buildBVH(tree->right, SceneMesh, middle+1, end);
+    }
+
+    std::cout << "START ->" << tree->start << "\n";
+    std::cout << "PRIMITIVE COUNT -->" << tree->primitive_count << "\n";
+
+    return tree;
+}
 
 // Loops through every Face on every object (Geometry) and checks if a ray at the
 // given original and direction will intersect it.
@@ -44,6 +148,24 @@ bool cpp_intersect(const tracer::scene &SceneMesh, const tracer::vec3<float> &or
   return (geomID != -1 && primID != -1);
 }
 
+void c_intersect_triangles_limits(c_triangle *triangles, int num_triangles,
+                           c_vec3f origin, c_vec3f direction,
+                           float *near_t_ptr, float *u_ptr, float *v_ptr,
+                           int *geom_id, int *prim_id, int begin, int end)
+{
+    for (auto i = begin; i < (begin+end); i++) {
+        c_triangle triangle = triangles[i];
+        // note that near_t_ptr keeps track of the shortest time-of-flight to hit a triangle:
+        // intersect will only return true if it hits a triangle at t < *near_t_ptr
+        if (c_intersect_triangle(origin, direction, &triangle, near_t_ptr, u_ptr, v_ptr)) {
+            *geom_id = triangle.geom_id;
+            *prim_id = triangle.prim_id;
+            // keep looping even if we hit a triangle in case we hit another one
+            // that is closer to the ray origin (ie with a smaller value of  later value of t)
+        }
+    }
+}
+
 void c_intersect_triangles(c_triangle *triangles, int num_triangles,
                            c_vec3f origin, c_vec3f direction,
                            float *near_t_ptr, float *u_ptr, float *v_ptr,
@@ -60,6 +182,33 @@ void c_intersect_triangles(c_triangle *triangles, int num_triangles,
             // that is closer to the ray origin (ie with a smaller value of  later value of t)
         }
     }
+}
+
+// Loops through every Face on every object (Geometry) and checks if a ray at the
+// given original and direction will intersect it.
+// Returns true and sets the ID of the object in geomID and face in primID
+bool call_c_intersect_limits(const tracer::scene &SceneMesh, const tracer::vec3<float> &ori,
+                      const tracer::vec3<float> &dir, float &t, float &u, float &v,
+                      size_t &geomID, size_t &primID, int begin, int end)
+{
+    c_vec3f c_origin = cpp_vec_to_c_vec(ori);
+    c_vec3f c_direction = cpp_vec_to_c_vec(dir);
+    // create new t, u, v for returning values from callee
+    float c_t = t;
+    float c_u = u;
+    float c_v = v;
+    int geom_id = -1;
+    int prim_id = -1;
+    c_intersect_triangles_limits(SceneMesh.c_triangles, SceneMesh.num_triangles, c_origin, c_direction,
+                          &c_t, &c_u, &c_v, &geom_id, &prim_id, begin, end);
+    t = c_t;
+    u = c_u;
+    v = c_v;
+    geomID = geom_id;
+    primID = prim_id;
+
+    // return true if we hit a triangle
+    return (geomID != -1 && primID != -1);
 }
 
 // Loops through every Face on every object (Geometry) and checks if a ray at the
@@ -87,6 +236,21 @@ bool call_c_intersect(const tracer::scene &SceneMesh, const tracer::vec3<float> 
 
     // return true if we hit a triangle
     return (geomID != -1 && primID != -1);
+}
+
+// Loops through every Face on every object (Geometry) and checks if a ray at the
+// given original and direction will intersect it.
+// Returns true and sets the ID of the object in geomID and face in primID
+bool intersect_limits(const tracer::scene &SceneMesh, const tracer::vec3<float> &ori,
+               const tracer::vec3<float> &dir, float &t, float &u, float &v,
+               size_t &geomID, size_t &primID, int begin, int end) {
+    if (SceneMesh.num_triangles > 0) {
+        // scene has flattened triangles, use the c_intersect method
+        return call_c_intersect_limits(SceneMesh, ori, dir, t, v, v, geomID, primID, begin, end);
+    }
+    else {
+        return cpp_intersect(SceneMesh, ori, dir, t, v, v, geomID, primID);
+    }
 }
 
 // Loops through every Face on every object (Geometry) and checks if a ray at the
@@ -233,9 +397,15 @@ int main(int argc, char *argv[]) {
     tracer::vec3<float> *image =
             new tracer::vec3<float>[image_height * image_width];
 
+    bvh_node * tree = (bvh_node *)malloc(sizeof(struct bvh_node));
+
     // flatten if needed
     if (flat) {
         flatten_scene(SceneMesh);
+
+        tree = buildBVH(tree, SceneMesh, 0, SceneMesh.num_triangles-1);
+
+        SceneMesh.tree = tree;
     }
 
     // start the clock!
@@ -243,6 +413,8 @@ int main(int argc, char *argv[]) {
 
     // START HERE
     std::vector<std::thread> threads;
+    
+
     std::random_device rd;
     std::mt19937 gen(rd());
     std::uniform_real_distribution<float> distrib(0, 1.f);
@@ -317,7 +489,89 @@ scan_row(tracer::scene &SceneMesh, int image_width, int image_height, tracer::ca
         float v = 0;
 
         // ispc : before we call intersect, convert the scenemesh into an array of triangles
+        bvh_node *treeBVH = SceneMesh.tree;
+        while(treeBVH != NULL) {
 
+            float *tnear, *tfar;
+            c_vec3f ori = vec3ToCVec3(ray.origin);
+            c_vec3f dir = vec3ToCVec3(ray.dir);
+            if(treeBVH->bbox.intersect(ori, dir, tnear, tfar)) {
+
+                std::cout << "PORTUGAL LISBOA CONSEGUIMOS \n";
+            /*    if(intersect_limits(SceneMesh, ray.origin, ray.dir, t, u, v, geomID, primID, treeBVH->start, treeBVH->primitive_count)) {
+                   auto i = geomID;
+            auto f = primID;
+            auto face = SceneMesh.geometry[i].face_index[f];
+
+            // find the normal vector for the face
+            auto N = normalize(cross(SceneMesh.geometry[i].vertex[face[1]] -
+                                     SceneMesh.geometry[i].vertex[face[0]],
+                                     SceneMesh.geometry[i].vertex[face[2]] -
+                                     SceneMesh.geometry[i].vertex[face[0]]));
+
+            if (!SceneMesh.geometry[i].normals.empty()) {
+                auto N0 = SceneMesh.geometry[i].normals[face[0]];
+                auto N1 = SceneMesh.geometry[i].normals[face[1]];
+                auto N2 = SceneMesh.geometry[i].normals[face[2]];
+                N = normalize(N1 * u + N2 * v + N0 * (1 - u - v));
+            }
+
+            for (auto &lightID : SceneMesh.light_sources) {
+                auto light = SceneMesh.geometry[lightID];
+                light.face_index.size();
+                std::uniform_int_distribution<int> distrib1(
+                        0, light.face_index.size() - 1);
+
+                // To draw a random variable from the distribution, you use the function call operator()
+                // and pass in an instance of a random number engine, such as a Mersenne Twister.
+                int faceID = distrib1(gen);
+                const auto &v0 = light.vertex[faceID];
+                const auto &v1 = light.vertex[faceID];
+                const auto &v2 = light.vertex[faceID];
+
+                auto P = v0 + ((v1 - v0) * float(distrib(gen)) +
+                               (v2 - v0) * float(distrib(gen)));
+
+                // hit is where along the vector it hits the face
+                auto hit = ray.origin +
+                           ray.dir * (t - std::numeric_limits<float>::epsilon());
+                auto L = P - hit;
+
+                auto len = tracer::length(L);
+
+                // 191 original: check time of flight to see if we have hit occlusion
+                t = len - std::numeric_limits<float>::epsilon();
+
+                L = tracer::normalize(L);
+
+                auto mat = SceneMesh.geometry[i].object_material;
+                auto c =
+                        (mat.ka * 0.5f + mat.ke) / float(SceneMesh.light_sources.size());
+
+                if (occlusion(SceneMesh, hit, L, t))
+                    continue;
+
+                auto d = dot(N, L);
+
+                if (d <= 0)
+                    continue;
+
+                auto H = normalize((N + L) * 2.f);
+
+                c = c + (mat.kd * d + mat.ks * pow(dot(N, H), mat.Ns)) /
+                        float(SceneMesh.light_sources.size());
+
+                // set pixel on the result image to the calculated color
+                image[h * image_width + w].r += c.r;
+                image[h * image_width + w].g += c.g;
+                image[h * image_width + w].b += c.b;
+            } 
+                }*/
+            }
+
+            treeBVH = treeBVH->left;
+        }
+        /*
         // if this ray intersects a polygon on the object, get the id of the face and object
         // and the details of intersection (t, u , v)
         if (intersect(SceneMesh, ray.origin, ray.dir, t, u, v, geomID, primID)) {
@@ -388,6 +642,6 @@ scan_row(tracer::scene &SceneMesh, int image_width, int image_height, tracer::ca
                 image[h * image_width + w].g += c.g;
                 image[h * image_width + w].b += c.b;
             }
-        }
+        }*/
     }
 }

@@ -4,19 +4,20 @@
 #include <string.h>
 #include "../math/vec.h"
 #include "scene.h"
-#include "hittable.h"
 #include "aabb.h"
 
 
-class bvh_node : public Hittable {
-    public:
-        bvh_node() {}
-        bvh_node(Hittable **l, int n, float time0, float time1);
+typedef struct bvh_node {
+    //! The bounding box of the node.
+    aabb bbox;
 
-        virtual bool hit(const c_vec3f &ori, const c_vec3f &dir, float t_min, float t_max, Hit& h) const;
-        virtual bool boundingBox(float t0, float t1, aabb &box) const;
+    //! The index of the first primitive.
+    uint32_t start;
 
-    private:
-        Hittable *left, *right;
-        aabb box;
-};
+    //! The number of primitives in this node.
+    uint32_t primitive_count;
+
+    bvh_node *left, *right;
+} bvh_node;
+
+extern bvh_node new_bvhNode(aabb &box, uint32_t start, uint32_t count, bool leaf);

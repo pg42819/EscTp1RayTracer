@@ -3,6 +3,7 @@
 #include "../math/vec.h"
 #include <vector>
 #include "../simplify/c_triangle.h"
+#include "bvh.h"
 
 namespace tracer {
 struct scene {
@@ -37,5 +38,8 @@ struct scene {
   // array of c structures for simple triangles to represent geometry
   c_triangle *c_triangles;
   int num_triangles = 0;
+
+  // BVH Tree
+  bvh_node * tree;
 };
 } // namespace tracer

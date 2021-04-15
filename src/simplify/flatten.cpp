@@ -25,6 +25,22 @@ bool leftMostTriangle(const c_triangle &t1, const c_triangle &t2)
     return t1.vertices[0].x < t2.vertices[0].x;
 }
 
+//comparison function to sort triangles by y axis.
+bool triangleYComparison(const c_triangle &t1, const c_triangle &t2)
+{
+    // compare the x coord of the first vertex (note we don't know that the first
+    // vertex is the leftmost itself but close enough)
+    return t1.vertices[0].y < t2.vertices[0].y;
+}
+
+//comparison function to sort triangles by z axis.
+bool triangleZComparison(const c_triangle &t1, const c_triangle &t2)
+{
+    // compare the x coord of the first vertex (note we don't know that the first
+    // vertex is the leftmost itself but close enough)
+    return t1.vertices[0].z < t2.vertices[0].z;
+}
+
 /**
  * Enhances the SceneMesh with a flat array of triangles representing every triangle in
  * every object in the original geometry

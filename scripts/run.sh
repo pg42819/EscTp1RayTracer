@@ -31,7 +31,7 @@ program="ESCViewer2021"
 # Run threaded
 #options="--thread"
 # Flatten triangles from scene
-for options in {"","--flat","--thread","--flat --thread"}
+for options in {"--flat","--flat --thread"}
 do
   run
 done
