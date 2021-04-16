@@ -39,7 +39,7 @@ struct scene {
   c_triangle *c_triangles;
   int num_triangles = 0;
 
-  // BVH Tree
+  // BVH vector
   bvh_node * tree;
 };
 } // namespace tracer

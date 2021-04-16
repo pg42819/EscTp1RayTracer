@@ -121,9 +121,6 @@ bvh_node * buildBVH(bvh_node *tree, const tracer::scene &SceneMesh, int begin, i
         tree->right = buildBVH(tree->right, SceneMesh, middle+1, end);
     }
 
-    std::cout << "START ->" << tree->start << "\n";
-    std::cout << "PRIMITIVE COUNT -->" << tree->primitive_count << "\n";
-
     return tree;
 }
 
@@ -397,15 +394,21 @@ int main(int argc, char *argv[]) {
     tracer::vec3<float> *image =
             new tracer::vec3<float>[image_height * image_width];
 
-    bvh_node * tree = (bvh_node *)malloc(sizeof(struct bvh_node));
+    SceneMesh.tree = (bvh_node *)malloc(sizeof(struct bvh_node));
 
     // flatten if needed
     if (flat) {
         flatten_scene(SceneMesh);
 
-        tree = buildBVH(tree, SceneMesh, 0, SceneMesh.num_triangles-1);
+        SceneMesh.tree = buildBVH(SceneMesh.tree, SceneMesh, 0, SceneMesh.num_triangles-1);
 
-        SceneMesh.tree = tree;
+        bvh_node *t = SceneMesh.tree;
+
+        while(t != NULL) {
+            std::cout << "STARTS --> " << t->start << " AND HAS #PRIMITIVES " << t->primitive_count << "\n";
+
+            t = t->right->left;
+        }
     }
 
     // start the clock!
@@ -488,160 +491,165 @@ scan_row(tracer::scene &SceneMesh, int image_width, int image_height, tracer::ca
         float u = 0;
         float v = 0;
 
-        // ispc : before we call intersect, convert the scenemesh into an array of triangles
-        bvh_node *treeBVH = SceneMesh.tree;
-        while(treeBVH != NULL) {
+        if(SceneMesh.num_triangles == 0) {
+            
+            // if this ray intersects a polygon on the object, get the id of the face and object
+            // and the details of intersection (t, u , v)
+            if (intersect(SceneMesh, ray.origin, ray.dir, t, u, v, geomID, primID)) {
+                auto i = geomID;
+                auto f = primID;
+                auto face = SceneMesh.geometry[i].face_index[f];
 
-            float *tnear, *tfar;
-            c_vec3f ori = vec3ToCVec3(ray.origin);
-            c_vec3f dir = vec3ToCVec3(ray.dir);
-            if(treeBVH->bbox.intersect(ori, dir, tnear, tfar)) {
+                // find the normal vector for the face
+                auto N = normalize(cross(SceneMesh.geometry[i].vertex[face[1]] -
+                                        SceneMesh.geometry[i].vertex[face[0]],
+                                        SceneMesh.geometry[i].vertex[face[2]] -
+                                        SceneMesh.geometry[i].vertex[face[0]]));
 
-                std::cout << "PORTUGAL LISBOA CONSEGUIMOS \n";
-            /*    if(intersect_limits(SceneMesh, ray.origin, ray.dir, t, u, v, geomID, primID, treeBVH->start, treeBVH->primitive_count)) {
-                   auto i = geomID;
-            auto f = primID;
-            auto face = SceneMesh.geometry[i].face_index[f];
+                if (!SceneMesh.geometry[i].normals.empty()) {
+                    auto N0 = SceneMesh.geometry[i].normals[face[0]];
+                    auto N1 = SceneMesh.geometry[i].normals[face[1]];
+                    auto N2 = SceneMesh.geometry[i].normals[face[2]];
+                    N = normalize(N1 * u + N2 * v + N0 * (1 - u - v));
+                }
 
-            // find the normal vector for the face
-            auto N = normalize(cross(SceneMesh.geometry[i].vertex[face[1]] -
-                                     SceneMesh.geometry[i].vertex[face[0]],
-                                     SceneMesh.geometry[i].vertex[face[2]] -
-                                     SceneMesh.geometry[i].vertex[face[0]]));
+                for (auto &lightID : SceneMesh.light_sources) {
+                    auto light = SceneMesh.geometry[lightID];
+                    light.face_index.size();
+                    std::uniform_int_distribution<int> distrib1(
+                            0, light.face_index.size() - 1);
 
-            if (!SceneMesh.geometry[i].normals.empty()) {
-                auto N0 = SceneMesh.geometry[i].normals[face[0]];
-                auto N1 = SceneMesh.geometry[i].normals[face[1]];
-                auto N2 = SceneMesh.geometry[i].normals[face[2]];
-                N = normalize(N1 * u + N2 * v + N0 * (1 - u - v));
+                    // To draw a random variable from the distribution, you use the function call operator()
+                    // and pass in an instance of a random number engine, such as a Mersenne Twister.
+                    int faceID = distrib1(gen);
+                    const auto &v0 = light.vertex[faceID];
+                    const auto &v1 = light.vertex[faceID];
+                    const auto &v2 = light.vertex[faceID];
+
+                    auto P = v0 + ((v1 - v0) * float(distrib(gen)) +
+                                (v2 - v0) * float(distrib(gen)));
+
+                    // hit is where along the vector it hits the face
+                    auto hit = ray.origin +
+                            ray.dir * (t - std::numeric_limits<float>::epsilon());
+                    auto L = P - hit;
+
+                    auto len = tracer::length(L);
+
+                    // 191 original: check time of flight to see if we have hit occlusion
+                    t = len - std::numeric_limits<float>::epsilon();
+
+                    L = tracer::normalize(L);
+
+                    auto mat = SceneMesh.geometry[i].object_material;
+                    auto c =
+                            (mat.ka * 0.5f + mat.ke) / float(SceneMesh.light_sources.size());
+
+                    if (occlusion(SceneMesh, hit, L, t))
+                        continue;
+
+                    auto d = dot(N, L);
+
+                    if (d <= 0)
+                        continue;
+
+                    auto H = normalize((N + L) * 2.f);
+
+                    c = c + (mat.kd * d + mat.ks * pow(dot(N, H), mat.Ns)) /
+                            float(SceneMesh.light_sources.size());
+
+                    // set pixel on the result image to the calculated color
+                    image[h * image_width + w].r += c.r;
+                    image[h * image_width + w].g += c.g;
+                    image[h * image_width + w].b += c.b;
+                }
             }
+        } else {
+            int pois = 0;
+                // ispc : before we call intersect, convert the scenemesh into an array of triangles
+            while(pois < 1) {
 
-            for (auto &lightID : SceneMesh.light_sources) {
-                auto light = SceneMesh.geometry[lightID];
-                light.face_index.size();
-                std::uniform_int_distribution<int> distrib1(
-                        0, light.face_index.size() - 1);
+                float tnear, tfar;
+                c_vec3f ori = vec3ToCVec3(ray.origin);
+                c_vec3f dir = vec3ToCVec3(ray.dir);
 
-                // To draw a random variable from the distribution, you use the function call operator()
-                // and pass in an instance of a random number engine, such as a Mersenne Twister.
-                int faceID = distrib1(gen);
-                const auto &v0 = light.vertex[faceID];
-                const auto &v1 = light.vertex[faceID];
-                const auto &v2 = light.vertex[faceID];
+                if(SceneMesh.tree->bbox.intersect(ori, dir, &tnear, &tfar)) {
 
-                auto P = v0 + ((v1 - v0) * float(distrib(gen)) +
-                               (v2 - v0) * float(distrib(gen)));
+                    if(intersect(SceneMesh, ray.origin, ray.dir, t, u, v, geomID, primID)) {
+                    auto i = geomID;
+                    auto f = primID;
+                    auto face = SceneMesh.geometry[i].face_index[f];
 
-                // hit is where along the vector it hits the face
-                auto hit = ray.origin +
-                           ray.dir * (t - std::numeric_limits<float>::epsilon());
-                auto L = P - hit;
+                    // find the normal vector for the face
+                    auto N = normalize(cross(SceneMesh.geometry[i].vertex[face[1]] -
+                                            SceneMesh.geometry[i].vertex[face[0]],
+                                            SceneMesh.geometry[i].vertex[face[2]] -
+                                            SceneMesh.geometry[i].vertex[face[0]]));
 
-                auto len = tracer::length(L);
+                    if (!SceneMesh.geometry[i].normals.empty()) {
+                        auto N0 = SceneMesh.geometry[i].normals[face[0]];
+                        auto N1 = SceneMesh.geometry[i].normals[face[1]];
+                        auto N2 = SceneMesh.geometry[i].normals[face[2]];
+                        N = normalize(N1 * u + N2 * v + N0 * (1 - u - v));
+                    }
 
-                // 191 original: check time of flight to see if we have hit occlusion
-                t = len - std::numeric_limits<float>::epsilon();
+                    for (auto &lightID : SceneMesh.light_sources) {
+                        auto light = SceneMesh.geometry[lightID];
+                        light.face_index.size();
+                        std::uniform_int_distribution<int> distrib1(
+                                0, light.face_index.size() - 1);
 
-                L = tracer::normalize(L);
+                        // To draw a random variable from the distribution, you use the function call operator()
+                        // and pass in an instance of a random number engine, such as a Mersenne Twister.
+                        int faceID = distrib1(gen);
+                        const auto &v0 = light.vertex[faceID];
+                        const auto &v1 = light.vertex[faceID];
+                        const auto &v2 = light.vertex[faceID];
 
-                auto mat = SceneMesh.geometry[i].object_material;
-                auto c =
-                        (mat.ka * 0.5f + mat.ke) / float(SceneMesh.light_sources.size());
+                        auto P = v0 + ((v1 - v0) * float(distrib(gen)) +
+                                    (v2 - v0) * float(distrib(gen)));
 
-                if (occlusion(SceneMesh, hit, L, t))
-                    continue;
+                        // hit is where along the vector it hits the face
+                        auto hit = ray.origin +
+                                ray.dir * (t - std::numeric_limits<float>::epsilon());
+                        auto L = P - hit;
 
-                auto d = dot(N, L);
+                        auto len = tracer::length(L);
 
-                if (d <= 0)
-                    continue;
+                        // 191 original: check time of flight to see if we have hit occlusion
+                        t = len - std::numeric_limits<float>::epsilon();
 
-                auto H = normalize((N + L) * 2.f);
+                        L = tracer::normalize(L);
 
-                c = c + (mat.kd * d + mat.ks * pow(dot(N, H), mat.Ns)) /
-                        float(SceneMesh.light_sources.size());
+                        auto mat = SceneMesh.geometry[i].object_material;
+                        auto c =
+                                (mat.ka * 0.5f + mat.ke) / float(SceneMesh.light_sources.size());
 
-                // set pixel on the result image to the calculated color
-                image[h * image_width + w].r += c.r;
-                image[h * image_width + w].g += c.g;
-                image[h * image_width + w].b += c.b;
-            } 
-                }*/
+                        if (occlusion(SceneMesh, hit, L, t))
+                            continue;
+
+                        auto d = dot(N, L);
+
+                        if (d <= 0)
+                            continue;
+
+                        auto H = normalize((N + L) * 2.f);
+
+                        c = c + (mat.kd * d + mat.ks * pow(dot(N, H), mat.Ns)) /
+                                float(SceneMesh.light_sources.size());
+
+                        // set pixel on the result image to the calculated color
+                        image[h * image_width + w].r += c.r;
+                        image[h * image_width + w].g += c.g;
+                        image[h * image_width + w].b += c.b;
+                    } 
+                        }
+                }
+
+                pois+=1;
             }
-
-            treeBVH = treeBVH->left;
+        
         }
-        /*
-        // if this ray intersects a polygon on the object, get the id of the face and object
-        // and the details of intersection (t, u , v)
-        if (intersect(SceneMesh, ray.origin, ray.dir, t, u, v, geomID, primID)) {
-            auto i = geomID;
-            auto f = primID;
-            auto face = SceneMesh.geometry[i].face_index[f];
 
-            // find the normal vector for the face
-            auto N = normalize(cross(SceneMesh.geometry[i].vertex[face[1]] -
-                                     SceneMesh.geometry[i].vertex[face[0]],
-                                     SceneMesh.geometry[i].vertex[face[2]] -
-                                     SceneMesh.geometry[i].vertex[face[0]]));
-
-            if (!SceneMesh.geometry[i].normals.empty()) {
-                auto N0 = SceneMesh.geometry[i].normals[face[0]];
-                auto N1 = SceneMesh.geometry[i].normals[face[1]];
-                auto N2 = SceneMesh.geometry[i].normals[face[2]];
-                N = normalize(N1 * u + N2 * v + N0 * (1 - u - v));
-            }
-
-            for (auto &lightID : SceneMesh.light_sources) {
-                auto light = SceneMesh.geometry[lightID];
-                light.face_index.size();
-                std::uniform_int_distribution<int> distrib1(
-                        0, light.face_index.size() - 1);
-
-                // To draw a random variable from the distribution, you use the function call operator()
-                // and pass in an instance of a random number engine, such as a Mersenne Twister.
-                int faceID = distrib1(gen);
-                const auto &v0 = light.vertex[faceID];
-                const auto &v1 = light.vertex[faceID];
-                const auto &v2 = light.vertex[faceID];
-
-                auto P = v0 + ((v1 - v0) * float(distrib(gen)) +
-                               (v2 - v0) * float(distrib(gen)));
-
-                // hit is where along the vector it hits the face
-                auto hit = ray.origin +
-                           ray.dir * (t - std::numeric_limits<float>::epsilon());
-                auto L = P - hit;
-
-                auto len = tracer::length(L);
-
-                // 191 original: check time of flight to see if we have hit occlusion
-                t = len - std::numeric_limits<float>::epsilon();
-
-                L = tracer::normalize(L);
-
-                auto mat = SceneMesh.geometry[i].object_material;
-                auto c =
-                        (mat.ka * 0.5f + mat.ke) / float(SceneMesh.light_sources.size());
-
-                if (occlusion(SceneMesh, hit, L, t))
-                    continue;
-
-                auto d = dot(N, L);
-
-                if (d <= 0)
-                    continue;
-
-                auto H = normalize((N + L) * 2.f);
-
-                c = c + (mat.kd * d + mat.ks * pow(dot(N, H), mat.Ns)) /
-                        float(SceneMesh.light_sources.size());
-
-                // set pixel on the result image to the calculated color
-                image[h * image_width + w].r += c.r;
-                image[h * image_width + w].g += c.g;
-                image[h * image_width + w].b += c.b;
-            }
-        }*/
     }
 }
