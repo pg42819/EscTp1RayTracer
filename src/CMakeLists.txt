@@ -7,8 +7,12 @@ find_package(Threads REQUIRED)
 set(SRC_FILES 
     scene/sceneloader.cpp
         simplify/flatten.cpp simplify/flatten.h
-        simplify/c_triangle.c simplify/c_vec.c
-        ispc/intersect.ispc intersect.h
+        simplify/c_intersect.c simplify/c_vec.c
+        # ISCP support:
+        simplify/flatten_iscp.cpp simplify/flatten_iscp.h
+        ispc/trace.ispc
+#       ispc/test.ispc
+
         scene/aabb.h scene/bvh.cpp scene/bvh.h
         scene/aabb.cpp
         main.cpp

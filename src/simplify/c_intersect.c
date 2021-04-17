@@ -1,6 +1,7 @@
 #include <float.h>
 #include <stdbool.h>
-#include "c_triangle.h"
+#include "c_intersect.h"
+#include "c_vec.h"
 
 bool c_intersect_triangle(c_vec3f orig, c_vec3f dir, c_triangle *triangle,
                           float *t, float *u, float *v)
@@ -64,4 +65,22 @@ bool c_intersect_triangle(c_vec3f orig, c_vec3f dir, c_triangle *triangle,
     *v = v2;
 
     return true;
+}
+
+void c_intersect_triangles(c_triangle *triangles, int num_triangles,
+                           c_vec3f origin, c_vec3f direction,
+                           float *near_t_ptr, float *u_ptr, float *v_ptr,
+                           int *geom_id, int *prim_id)
+{
+    for (int i = 0; i < num_triangles; i++) {
+        c_triangle triangle = triangles[i];
+        // note that near_t_ptr keeps track of the shortest time-of-flight to hit a triangle:
+        // intersect will only return true if it hits a triangle at t < *near_t_ptr
+        if (c_intersect_triangle(origin, direction, &triangle, near_t_ptr, u_ptr, v_ptr)) {
+            *geom_id = triangle.geom_id;
+            *prim_id = triangle.prim_id;
+            // keep looping even if we hit a triangle in case we hit another one
+            // that is closer to the ray origin (ie with a smaller value of  later value of t)
+        }
+    }
 }
