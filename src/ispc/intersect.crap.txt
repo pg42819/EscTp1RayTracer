@@ -1,8 +1,8 @@
 //
 // Example ispc file to test compiler
 //
-
-#include "src/intersect.h"
+#include "ispc_vec.h"
+//#include "src/intersect.h"
 extern "C" {
 unmasked void fooCpp(float *uniform v  /* the data */,
                      int *uniform active /* explicit active mask */,
@@ -23,5 +23,11 @@ void fooIspc(varying float f)
 //    fooCpp(.....);
 }
 
-//bool ispc_intersect_triangle(uniform c_vec3f orig, uniform c_vec3f dir, uniform c_triangle *triangle,
+//bool ispc_intersect_triangle(uniform c_vec3f orig, uniform c_vec3f dir, uniform ispc_triangle *triangle,
 //                             uniform float *t, float *u, float *v)
+
+//int ispc_intersect_triangle(c_vec3f orig, c_vec3f dir, ispc_triangle *triangle,
+int ispc_intersect_triangle(uniform float *t, uniform float *u, uniform float *v)
+{
+    return 0;
+}

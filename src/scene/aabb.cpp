@@ -1,4 +1,3 @@
-#pragma once
 #include <stdlib.h>
 #include "scene.h"
 #include "../math/vec.h"

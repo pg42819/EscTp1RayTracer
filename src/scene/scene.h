@@ -2,7 +2,6 @@
 
 #include "../math/vec.h"
 #include <vector>
-#include "../simplify/c_triangle.h"
 
 namespace tracer {
 struct scene {
@@ -33,9 +32,5 @@ struct scene {
   // before ispc convert this into a flat array of vertices
   std::vector<Geometry> geometry;
   std::vector<size_t> light_sources;
-
-  // array of c structures for simple triangles to represent geometry
-  c_triangle *c_triangles;
-  int num_triangles = 0;
 };
 } // namespace tracer
