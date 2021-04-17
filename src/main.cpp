@@ -54,9 +54,9 @@ aabb computeMaxBox(const c_triangle *c_triangles, int begin, int end) {
             
             if(c_triangles[begin].vertices[i].x < minVertex.x)
                 minVertex.x = c_triangles[begin].vertices[i].x;
-            if(c_triangles[begin].vertices[i].y > minVertex.y)
+            if(c_triangles[begin].vertices[i].y < minVertex.y)
                 minVertex.y = c_triangles[begin].vertices[i].y;
-            if(c_triangles[begin].vertices[i].z > minVertex.z)
+            if(c_triangles[begin].vertices[i].z < minVertex.z)
                 minVertex.z = c_triangles[begin].vertices[i].z;
         }
 
@@ -88,12 +88,15 @@ aabb computeMaxBox(const c_triangle *c_triangles, int begin, int end) {
 
 }
 
-bvh_node * buildBVH(bvh_node *tree, const tracer::scene &SceneMesh, int begin, int end) {
+bvh_node * buildBVH(bvh_node *tree, const tracer::scene &SceneMesh, int begin, int end, bool threaded) {
     
     int middle = 0;
     middle += begin + (end-begin) / 2;
 
-    if(begin == end) {
+    std::vector<std::thread> threads;
+
+    if(threaded) {
+        if(begin == end) {
 
         aabb box = computeMaxBox(SceneMesh.c_triangles, begin, begin);
 
@@ -106,8 +109,25 @@ bvh_node * buildBVH(bvh_node *tree, const tracer::scene &SceneMesh, int begin, i
         tree->left = NULL;
         tree->right = NULL;
 
+        } else {
+            aabb box = computeMaxBox(SceneMesh.c_triangles, begin, end);
+
+            tree->bbox = box;
+
+            tree->primitive_count = end - begin + 1;
+
+            tree->start = begin;
+
+            tree->left = (bvh_node *)malloc(sizeof(struct bvh_node));
+            tree->right = (bvh_node *)malloc(sizeof(struct bvh_node));
+            threads.push_back(std::thread(buildBVH,std::ref(tree->left), std::ref(SceneMesh), begin, middle, threaded));
+            threads.push_back(std::thread(buildBVH,std::ref(tree->right), std::ref(SceneMesh), middle+1, end, threaded));
+            //tree->right = buildBVH(tree->right, SceneMesh, middle+1, end, threaded);
+        }
     } else {
-        aabb box = computeMaxBox(SceneMesh.c_triangles, begin, end);
+        if(begin == end) {
+
+        aabb box = computeMaxBox(SceneMesh.c_triangles, begin, begin);
 
         tree->bbox = box;
 
@@ -115,11 +135,28 @@ bvh_node * buildBVH(bvh_node *tree, const tracer::scene &SceneMesh, int begin, i
 
         tree->start = begin;
 
-        tree->left = (bvh_node *)malloc(sizeof(struct bvh_node));
-        tree->right = (bvh_node *)malloc(sizeof(struct bvh_node));
-        tree->left = buildBVH(tree->left, SceneMesh, begin, middle);
-        tree->right = buildBVH(tree->right, SceneMesh, middle+1, end);
+        tree->left = NULL;
+        tree->right = NULL;
+
+        } else {
+            aabb box = computeMaxBox(SceneMesh.c_triangles, begin, end);
+
+            tree->bbox = box;
+
+            tree->primitive_count = end - begin + 1;
+
+            tree->start = begin;
+
+            tree->left = (bvh_node *)malloc(sizeof(struct bvh_node));
+            tree->right = (bvh_node *)malloc(sizeof(struct bvh_node));
+            tree->left = buildBVH(tree->left, SceneMesh, begin, middle, threaded);
+            tree->right = buildBVH(tree->right, SceneMesh, middle+1, end, threaded);
+        }
     }
+
+    for (auto &thr : threads) {
+            thr.join();
+        }
 
     return tree;
 }
@@ -400,7 +437,7 @@ int main(int argc, char *argv[]) {
     if (flat) {
         flatten_scene(SceneMesh);
 
-        SceneMesh.tree = buildBVH(SceneMesh.tree, SceneMesh, 0, SceneMesh.num_triangles-1);
+        SceneMesh.tree = buildBVH(SceneMesh.tree, SceneMesh, 0, SceneMesh.num_triangles-1, threaded);
 
         bvh_node *t = SceneMesh.tree;
 
@@ -413,6 +450,8 @@ int main(int argc, char *argv[]) {
 
     // start the clock!
     auto start_time = std::chrono::high_resolution_clock::now();
+
+    std::cout << SceneMesh.geometry.size() << " <-- THIS IS HOW MANY OBJS THERE ARE";
 
     // START HERE
     std::vector<std::thread> threads;
@@ -565,13 +604,14 @@ scan_row(tracer::scene &SceneMesh, int image_width, int image_height, tracer::ca
                 }
             }
         } else {
-            int pois = 0;
-                // ispc : before we call intersect, convert the scenemesh into an array of triangles
-            while(pois < 1) {
 
                 float tnear, tfar;
                 c_vec3f ori = vec3ToCVec3(ray.origin);
                 c_vec3f dir = vec3ToCVec3(ray.dir);
+
+                std::cout << "MIN X,Y,Z BBOX --> " << SceneMesh.tree->bbox._min.x << "," << SceneMesh.tree->bbox._min.y << "," << SceneMesh.tree->bbox._min.z << "\n";
+
+                std::cout << "MAX X,Y,Z BBOX --> " << SceneMesh.tree->bbox._max.x << "," << SceneMesh.tree->bbox._max.y << "," << SceneMesh.tree->bbox._max.z << "\n";
 
                 if(SceneMesh.tree->bbox.intersect(ori, dir, &tnear, &tfar)) {
 
@@ -645,9 +685,6 @@ scan_row(tracer::scene &SceneMesh, int image_width, int image_height, tracer::ca
                     } 
                         }
                 }
-
-                pois+=1;
-            }
         
         }
 
