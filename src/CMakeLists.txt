@@ -8,9 +8,11 @@ set(SRC_FILES
     scene/sceneloader.cpp
         simplify/flatten.cpp simplify/flatten.h
         simplify/c_intersect.c simplify/c_vec.c
+        # ISCP support:
+        simplify/flatten_iscp.cpp simplify/flatten_iscp.h
         ispc/trace.ispc
-#        ispc/intersect.ispc
-#        ispc/test.ispc
+#       ispc/test.ispc
+
         scene/aabb.h scene/bvh.cpp scene/bvh.h
         scene/hittable.cpp
         scene/aabb.cpp
