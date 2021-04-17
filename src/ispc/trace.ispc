@@ -78,9 +78,8 @@ int intersect_triangles(uniform int num_triangles, uniform ispc_triangle triangl
 {
     // TODO tile loop over CPU vector width
     int has_hit = 0;
-    for (int i = 0; i < num_triangles; i++) {
-//    foreach (i = 0 ... num_triangles) {
-//        has_hit = intersect_triangle(ray, triangles[i]);
+//    for (int i = 0; i < num_triangles; i++) {
+    foreach (i = 0 ... num_triangles) {
         has_hit = intersect_triangle(ray, &triangles[i], hit_info);
         if (has_hit) {
             // TODO find min t here using ispc reduce min
