@@ -90,7 +90,6 @@ int intersect_triangles(uniform int num_triangles, uniform ispc_triangle triangl
     return has_hit;
 }
 
-
 // TODO make the triangles const and pass in an array
 export void trace(uniform int image_width, uniform int image_height,
                   uniform ispc_cam &cam,
