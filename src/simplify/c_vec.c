@@ -1,6 +1,6 @@
-#ifndef ISPC
 #include <math.h>
-#endif
+#include <string.h>
+#include <stdbool.h>
 #include "c_vec.h"
 
 c_vec3f new_vec3f(float x, float y, float z)
