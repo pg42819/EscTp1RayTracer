@@ -25,7 +25,7 @@ run() {
 }
 
 #model="cornell/CornellBox-Sphere.obj"
-model="cornell/CornellBox-Object.obj"
+model="cornell/CornellBox-Original.obj"
 eye="0,1,2"
 look="0,1,0"
 program="ESCViewer2021"
