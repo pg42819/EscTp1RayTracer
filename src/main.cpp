@@ -547,6 +547,8 @@ int main(int argc, char *argv[]) {
                       .count()
               << std::endl;
 
+
+    // Write the image out to a file (if -o is specified, otherwise debug assumed)
     if (!outputname.empty()) {
         std::ofstream file(outputname, std::ios::out);
 
@@ -557,7 +559,12 @@ int main(int argc, char *argv[]) {
 
                 tracer::vec3<float> img;
                 if (ispc) {
-                    // ispc uses the flat array for pixels
+                    // ispc uses the flat array for pixels with r,g,b stretched out into the array
+                    int flat_offset = offset * 3;
+                    // convert to vector to reuse the writing code
+                    img = tracer::vec3<float>(flat_image_ispc[flat_offset],      // r
+                                              flat_image_ispc[flat_offset + 1],  // g
+                                              flat_image_ispc[flat_offset + 2]); // b
                 }
                 else {
                     // regular vector image for non-ispc cases
