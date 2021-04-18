@@ -3,7 +3,7 @@
 current_dir=$( cd "$( dirname ${BASH_SOURCE[0]} )" && pwd )
 source ${current_dir}/set_env.sh
 
-OUT_DIR=${PROJECT_OUT_DIR}/sphere
+OUT_DIR=${PROJECT_OUT_DIR}/plain
 export MODELS_DIR=${PROJECT_BIN_DIR}/models
 mkdir -p ${OUT_DIR}
 
@@ -24,7 +24,8 @@ run() {
   fi
 }
 
-model="cornell/CornellBox-Sphere.obj"
+#model="cornell/CornellBox-Sphere.obj"
+model="cornell/CornellBox-Object.obj"
 eye="0,1,2"
 look="0,1,0"
 program="ESCViewer2021"
