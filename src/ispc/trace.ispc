@@ -10,7 +10,7 @@ int intersect_triangle(ispc_ray &ray, ispc_triangle *triangle, int triangle_inde
     vec3 tvec, pvec, qvec;
     double determinant, inverse_determinant;
 
-    // orgiinal from main.cpp:
+    // orginal from main.cpp:
     // find vectors for two edges sharing vert0
     //    edge1 = vert1 - vert0;
     //    edge2 = vert2 - vert0;
@@ -67,21 +67,13 @@ int intersect_triangle(ispc_ray &ray, ispc_triangle *triangle, int triangle_inde
     }
 }
 
-// TODO implement occlusion
-int occlusion(vec3 hit, vec3 L, float t)
-{
-    return 0;
-}
-
 void intersect_triangles(uniform int num_triangles, uniform ispc_triangle triangles[], // triangles to try to intersect
                          ispc_ray &ray, ispc_hit_info &hit_info, uniform int debug)
 {
-    // TODO tile loop over CPU vector width
     if (debug >= TRACE) {
         print("Checking triangles incoming \n    i=%\n    hit_info:\n        tri=%\n        t=%\n        u=%\n\n",
               hit_info.triangle_index, hit_info.t, hit_info.u);
     }
-//    int has_hit = 0;
     foreach (i = 0 ... num_triangles) {
         intersect_triangle(ray, &triangles[i], i, hit_info);
     }
@@ -89,10 +81,6 @@ void intersect_triangles(uniform int num_triangles, uniform ispc_triangle triang
         print("Checked triangles outgoing \n    i=%\n    hit_info:\n         tri=%\n        t=%\n        u=%\n\n",
               hit_info.triangle_index, hit_info.t, hit_info.u);
     }
-//    if (any(hit_info.triangle_index >= 0)) {
-//        has_hit = 1;
-//    }
-//    return has_hit;
 }
 
 export void trace(uniform int image_width, uniform int image_height,
@@ -235,41 +223,48 @@ export void trace(uniform int image_width, uniform int image_height,
                     // divide color by number of lights to get the fraction of the effect of this light source
                     vec3 c = (mat.ka * 0.5f + mat.ke) / ((float)num_lights);
 
-                    // TODO __ occlusion
                     // Original from main.cpp
                     //     if (occlusion(SceneMesh, hit, L, t))
                     //         continue;
-                    if (occlusion(hit, L, t)) {
-                        continue;
-                    }
+                    // create a new ray from the hit point to the light to check occlusion
+                    ispc_ray occluded_ray;
+                    occluded_ray.origin = hit;
+                    occluded_ray.dir = L;
+                    // reuse the hit info for the ray to the light source
+                    hit_info.triangle_index = -1;
+                    hit_info.t = t;
+                    // intersect for occclusion
+                    intersect_triangles(num_triangles, triangles, occluded_ray, hit_info, debug);
+                    if (hit_info.triangle_index < 0) {
+                        // not occluded!
 
-                    //     auto d = dot(N, L);
-                    //    if (d <= 0)
-                    //       continue;
-                    //
-                    //     auto H = normalize((N + L) * 2.f);
-                    //
-                    //     c = c + (mat.kd * d + mat.ks * pow(dot(N, H), mat.Ns)) /
-                    //        float(SceneMesh.light_sources.size());
-                    float d = vec3_dot(N, L);
-                    if (d <= 0) {
-                        continue;
-                    }
+                        //     auto d = dot(N, L);
+                        //    if (d <= 0)
+                        //       continue;
+                        //
+                        //     auto H = normalize((N + L) * 2.f);
+                        //
+                        //     c = c + (mat.kd * d + mat.ks * pow(dot(N, H), mat.Ns)) /
+                        //        float(SceneMesh.light_sources.size());
+                        float d = vec3_dot(N, L);
+                        if (d > 0) {
 
-                    vec3 H = vec3_normalize((N + L) * 2.f);
-                    c = c + (mat.kd * d + mat.ks * pow(vec3_dot(N, H), mat.Ns)) / ((float)num_lights);
+                            vec3 H = vec3_normalize((N + L) * 2.f);
+                            c = c + (mat.kd * d + mat.ks * pow(vec3_dot(N, H), mat.Ns)) / ((float)num_lights);
 
-                    // Original from main.cpp
-                    //     image[h * image_width + w].r += c.r;
-                    //     image[h * image_width + w].g += c.g;
-                    //     image[h * image_width + w].b += c.b;
+                            // Original from main.cpp
+                            //     image[h * image_width + w].r += c.r;
+                            //     image[h * image_width + w].g += c.g;
+                            //     image[h * image_width + w].b += c.b;
 
-                    // add colors to build up final color of pixel over light sources
-                    // in flat ispc image, r, g, b are inline in the array for each pixel, hence * 3;
-                    int offset = (h * image_width + w) * 3;
-                    return_image[offset + 0] += c.r;
-                    return_image[offset + 1] += c.g;
-                    return_image[offset + 2] += c.b;
+                            // add colors to build up final color of pixel over light sources
+                            // in flat ispc image, r, g, b are inline in the array for each pixel, hence * 3;
+                            int offset = (h * image_width + w) * 3;
+                            return_image[offset + 0] += c.r;
+                            return_image[offset + 1] += c.g;
+                            return_image[offset + 2] += c.b;
+                        } // d > 0
+                    } // occluded
                 } // foreach light source
             } // if ray hits triangle
         }// for each scene pixel w
