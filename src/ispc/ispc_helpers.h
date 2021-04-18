@@ -1,8 +1,10 @@
 #pragma once
 // No math.h for ISPC :(
 #define M_PI 3.1415926535f
-#define DBL_EPSILON 0.0001f
-
+#define EPSILON 0.0001f
+// Note: not documented but some constants can found in source at:
+//
+// E.g.: UINT32_MAX  - max 32bit unsigned int (useful for random)
 /**
  * 3-float vec3tor - equivalent of vec3 in vec3.h but for use in ispc or pure c not only c++
  */
@@ -15,8 +17,41 @@ struct ispc_triangle {
     int prim_id;
     int geom_id;
     int has_normals;
+    int is_light;
+    // material info: repeated across triangles in the same object for performance
+    float ka[3];  // reflection rate (ambience)
+    float kd[3];  // surface color (diffuse)
+    float ks[3];  // specular intensity
+    float ke[3];  // emission intensity
+    float Ns;     // specular index
 };
 
+// ispc float<3> version for calculations
+struct material {
+    vec3 ka;  // reflection rate (ambience)
+    vec3 kd;  // surface color (diffuse)
+    vec3 ks;  // specular intensity
+    vec3 ke;  // emission intensity
+    float Ns;  // specular index
+};
+
+void get_material(ispc_triangle &triangle, material &mat) {
+    vec3 ka = { triangle.ka[0], triangle.ka[1], triangle.ka[2] };
+    vec3 kd = { triangle.kd[0], triangle.kd[1], triangle.kd[2] };
+    vec3 ks = { triangle.ks[0], triangle.ks[1], triangle.ks[2] };
+    vec3 ke = { triangle.ke[0], triangle.ke[1], triangle.ke[2] };
+    mat.ka = ka;
+    mat.kd = kd;
+    mat.ks = ks;
+    mat.ke = ke;
+    mat.Ns = triangle.Ns;
+}
+
+struct ispc_light {
+    int geom_id;
+    int *light_faces; // array of indexes in the triangle array of the light source triangles
+    int num_light_faces;
+};
 
 // structure to share the camera state with
 struct ispc_cam {
@@ -89,8 +124,8 @@ vec3 new_vec3(float x, float y, float z)
  * Vector dot product
  * C = A.B = AxBx + AyBy + AzBz
  */
-double vec3_dot(vec3 a, vec3 b) {
-    double dot_product = (a.x * b.x) + (a.y * b.y) + (a.z * b.z);
+float vec3_dot(vec3 a, vec3 b) {
+    float dot_product = (a.x * b.x) + (a.y * b.y) + (a.z * b.z);
     return dot_product;
 }
 

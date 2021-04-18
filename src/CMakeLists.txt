@@ -11,7 +11,7 @@ set(SRC_FILES
         # ISCP support:
         simplify/flatten_iscp.cpp simplify/flatten_iscp.h
         ispc/trace.ispc
-#       ispc/test.ispc
+#        ispc/test.ispc
 
         scene/aabb.h scene/bvh.cpp scene/bvh.h
         scene/aabb.cpp
