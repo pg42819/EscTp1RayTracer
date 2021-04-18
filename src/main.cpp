@@ -332,8 +332,6 @@ void renderBVH(tracer::scene &SceneMesh,bvh_node * tree, c_vec3f ori, c_vec3f di
                 float u, float v, size_t geomID, size_t primID, tracer::ray &ray, std::mt19937 &gen, std::uniform_real_distribution<float> &distrib, int h, tracer::vec3<float> *image, int image_width, int w) 
 {
 
-    auto start_time = std::chrono::high_resolution_clock::now();
-
     if(tree->bbox.intersect(ori, dir, tnear, tfar)) {
         if((tree->left == NULL) && (tree->right == NULL)) { // so this is a leaf node
         if(intersect_limits(SceneMesh, ray.origin, ray.dir, t, u, v, geomID, primID, SceneMesh.tree->start, SceneMesh.tree->primitive_count)) {
@@ -408,18 +406,11 @@ void renderBVH(tracer::scene &SceneMesh,bvh_node * tree, c_vec3f ori, c_vec3f di
                     
                         }
     } else {
+        
         renderBVH(SceneMesh, tree->right, ori, dir, tnear, tfar, t, u, v, geomID, primID, ray, gen, distrib, h, image, image_width, w);
         renderBVH(SceneMesh, tree->left, ori, dir, tnear, tfar, t, u, v, geomID, primID, ray, gen, distrib, h, image, image_width, w);
     }
     }
-
-    auto end_time = std::chrono::high_resolution_clock::now();
-
-    std::cerr << "\n Duration  for render BVH: "
-              << std::chrono::duration_cast<std::chrono::milliseconds>(end_time -
-                                                                       start_time)
-                      .count()
-              << std::endl;
 
 }
 
@@ -804,15 +795,11 @@ scan_row(tracer::scene &SceneMesh, int image_width, int image_height, tracer::ca
             c_vec3f ori = vec3ToCVec3(ray.origin);
             c_vec3f dir = vec3ToCVec3(ray.dir);
 
-            //std::cout << "MIN X,Y,Z BBOX --> " << SceneMesh.tree->bbox._min.x << "," << SceneMesh.tree->bbox._min.y << "," << SceneMesh.tree->bbox._min.z << "\n";
-
-            //std::cout << "MAX X,Y,Z BBOX --> " << SceneMesh.tree->bbox._max.x << "," << SceneMesh.tree->bbox._max.y << "," << SceneMesh.tree->bbox._max.z << "\n";
             bvh_node *found = SceneMesh.tree;
-//                found = find_smallest_node_hit(found, ori, dir, &tnear, &tfar);
+            
+            renderBVH(SceneMesh, SceneMesh.tree, ori, dir, &tnear, &tfar, t, u, v, geomID, primID, ray, gen, distrib, h, image, image_width, w);
 
-            //renderBVH(SceneMesh, SceneMesh.tree, ori, dir, &tnear, &tfar, t, u, v, geomID, primID, ray, gen, distrib, h, image, image_width, w);
-
-            if (found->bbox.intersect(ori, dir, &tnear, &tfar)) {
+            /*if (found->bbox.intersect(ori, dir, &tnear, &tfar)) {
 //                find_smallest_node_hit(found, ori, dir, &tnear, &tfar);
                 if (SceneMesh.tree->bbox.intersect(ori, dir, &tnear, &tfar)) {
 
@@ -889,7 +876,7 @@ scan_row(tracer::scene &SceneMesh, int image_width, int image_height, tracer::ca
 
                     }
                 }
-            }
+            }*/
         }
     }
 }

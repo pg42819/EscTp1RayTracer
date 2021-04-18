@@ -29,9 +29,9 @@ eye="0,1,2"
 look="0,1,0"
 program="ESCViewer2021"
 # Run threaded
-#options="--thread"
+options = "--flat --thread"
 # Flatten triangles from scene
-for options in {"--flat","--flat --thread"}
+for options in {"--thread","--flat --thread"}
 do
   run
 done
