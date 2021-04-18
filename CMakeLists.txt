@@ -5,13 +5,13 @@ cmake_minimum_required(VERSION 3.19)
 # Uncomment to force GCC (local to chris's system) instead of default clang
 #set(CMAKE_C_COMPILER "/usr/local/bin/gcc-10")
 #set(CMAKE_CXX_COMPILER "/usr/local/bin/gcc-10")
-#set(CMAKE_ISPC_COMPILER "/usr/local/bin/ispc")
+set(CMAKE_ISPC_COMPILER "/usr/local/bin/ispc")
 
 # see the compiler line verbose
 set(CMAKE_VERBOSE_MAKEFILE ON)
 
 
-#project(RTracer CXX)
+#project(RTracer C CXX)
 project(RTracer C CXX ISPC)
 
 if (POLICY CMP0074)

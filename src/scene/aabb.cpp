@@ -1,4 +1,3 @@
-#pragma once
 #include <stdlib.h>
 #include <cmath>
 #include "scene.h"
