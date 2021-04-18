@@ -73,15 +73,15 @@ int occlusion(vec3 hit, vec3 L, float t)
     return 0;
 }
 
-int intersect_triangles(uniform int num_triangles, uniform ispc_triangle triangles[], // triangles to try to intersect
-                        ispc_ray &ray, ispc_hit_info &hit_info, uniform int debug)
+void intersect_triangles(uniform int num_triangles, uniform ispc_triangle triangles[], // triangles to try to intersect
+                         ispc_ray &ray, ispc_hit_info &hit_info, uniform int debug)
 {
     // TODO tile loop over CPU vector width
     if (debug >= TRACE) {
         print("Checking triangles incoming \n    i=%\n    hit_info:\n        tri=%\n        t=%\n        u=%\n\n",
               hit_info.triangle_index, hit_info.t, hit_info.u);
     }
-    int has_hit = 0;
+//    int has_hit = 0;
     foreach (i = 0 ... num_triangles) {
         intersect_triangle(ray, &triangles[i], i, hit_info);
     }
@@ -89,10 +89,10 @@ int intersect_triangles(uniform int num_triangles, uniform ispc_triangle triangl
         print("Checked triangles outgoing \n    i=%\n    hit_info:\n         tri=%\n        t=%\n        u=%\n\n",
               hit_info.triangle_index, hit_info.t, hit_info.u);
     }
-    if (any(hit_info.triangle_index >= 0)) {
-        has_hit = 1;
-    }
-    return has_hit;
+//    if (any(hit_info.triangle_index >= 0)) {
+//        has_hit = 1;
+//    }
+//    return has_hit;
 }
 
 export void trace(uniform int image_width, uniform int image_height,
@@ -135,7 +135,8 @@ export void trace(uniform int image_width, uniform int image_height,
             new_ray(camera_info, is, it, ray);
             ispc_hit_info hit_info = new_hit_info();
 
-            if (intersect_triangles(num_triangles, triangles, ray, hit_info, debug)) {
+            intersect_triangles(num_triangles, triangles, ray, hit_info, debug);
+            if (hit_info.triangle_index >= 0) {
                 // original code:
                 //    auto i = geomID;
                 //    auto f = primID;    // f = triangle ID, face = array of triangle corner indexes in geom.vertex
@@ -146,7 +147,7 @@ export void trace(uniform int image_width, uniform int image_height,
                 material mat;
                 get_material(tri, mat);
                 if (debug >= DEBUG) {
-                    print("Hit triangle #% at t=% \n", hit_info.triangle_index, hit_info.t);
+                    print("Hit triangle #%\n  at t=% \n", hit_info.triangle_index, hit_info.t);
                 }
 
                 vec3 N; // normal to hit triangle
