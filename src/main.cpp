@@ -10,6 +10,7 @@
 #include <thread>
 #include <type_traits>
 #include <float.h>
+#include "debug.h"
 #include "math/vec.h"
 #include "scene/camera.h"
 #include "scene/ray_triangle.h"
@@ -29,7 +30,7 @@ scan_row(tracer::scene &SceneMesh, int image_width, int image_height, tracer::ca
          std::mt19937 &gen, std::uniform_real_distribution<float> &distrib, int h);
 
 
-bvh_node *find_smallest_node_hit(bvh_node *parent, c_vec3f ori, c_vec3f dir, float *tnear, float *tfar);
+//bvh_node *find_smallest_node_hit(bvh_node *parent, c_vec3f ori, c_vec3f dir, float *tnear, float *tfar);
 
 c_vec3f vec3ToCVec3(tracer::vec3<float> input) {
     c_vec3f r;
@@ -430,7 +431,7 @@ int main(int argc, char *argv[]) {
     bool flat{false};
     bool ispc{false};
     bool test{false};
-    int debug{0};
+    int debug{INFO};
     tracer::vec3<float> eye(0, 1, 3), look(0, 1, 0);
     tracer::vec2<uint> windowSize(1024, 768);
 
@@ -463,7 +464,12 @@ int main(int argc, char *argv[]) {
 
         // --debug
         if (std::string(argv[arg]) == "--debug") {
-            debug = 1;
+            debug = DEBUG;
+            continue;
+        }
+        // --debug
+        if (std::string(argv[arg]) == "--trace") {
+            debug = TRACE;
             continue;
         }
 
@@ -582,14 +588,6 @@ int main(int argc, char *argv[]) {
               << std::endl;
     }
 
-
-    ispc::ispc_triangle *flat_triangles;
-    ispc::ispc_light *ispc_lights;
-    ispc::ispc_triangle *light_faces;
-    int num_light_faces = 0;
-    int num_flat_triangles = 0;
-    int num_lights = 0;
-
     // start the clock!
     auto start_time = std::chrono::high_resolution_clock::now();
 
@@ -603,14 +601,32 @@ int main(int argc, char *argv[]) {
         // prepare a flat array of floats for image pixels in ispc
         flat_image_ispc = (float *) malloc(image_height * image_width * 3 * sizeof(float));
 
+        FlatScene flat_scene;
         // note this happens after clock start to compare with algos that do not need to flatten
         // flatten if needed
-        flatten_scene_ispc(SceneMesh, &flat_triangles, &num_flat_triangles,
-                           &ispc_lights, &num_lights, &light_faces, &num_light_faces);
+        flatten_scene_ispc(SceneMesh, flat_scene, debug);
+        // extract basic types from flat scene to pass to ispc
+        ispc::ispc_triangle *triangles = flat_scene.triangles.data();
+        int num_triangles = flat_scene.triangles.size();
+        ispc::ispc_light *ispc_lights = flat_scene.lights.data();
+        int num_lights = flat_scene.lights.size();
+        ispc::ispc_triangle *light_faces = flat_scene.light_faces.data();
+        int num_light_faces = flat_scene.light_faces.size();
+
+        if (debug >= DEBUG) {
+            std::cout << "Before trace: \n num_flat_triangles   = " << num_triangles << std::endl;
+            std::cout << " num_lights      = " << num_lights << std::endl;
+            std::cout << " num_light_faces = " << num_light_faces << std::endl;
+            ispc::ispc_light last_light = ispc_lights[num_lights - 1];
+            std::cout << " Last light: \n    num_light_faces = " << last_light.num_light_faces << std::endl;
+            for (int l = 0; l < last_light.num_light_faces; l++) {
+                std::cout << "    light_face[" << l << "] = (light face triangle index) " << last_light.light_faces[l] << std::endl;
+            }
+        }
         // convert camera to ispc camera
 
         ispc::trace(image_width, image_height, ispc_cam,
-                    num_flat_triangles, flat_triangles,
+                    num_triangles, triangles,
                     num_lights, ispc_lights,
                     num_light_faces, light_faces,
                     flat_image_ispc, // return values
@@ -797,6 +813,8 @@ scan_row(tracer::scene &SceneMesh, int image_width, int image_height, tracer::ca
                 //renderBVH(SceneMesh, SceneMesh.tree, ori, dir, &tnear, &tfar, t, u, v, geomID, primID, ray, gen, distrib, h, image, image_width, w);
 
                 if(found->bbox.intersect(ori, dir, &tnear, &tfar)) {
+//                find_smallest_node_hit(found, ori, dir, &tnear, &tfar);
+                if(SceneMesh.tree->bbox.intersect(ori, dir, &tnear, &tfar)) {
 
                     if(intersect_limits(SceneMesh, ray.origin, ray.dir, t, u, v, geomID, primID, SceneMesh.tree->start, SceneMesh.tree->primitive_count)) {
                     
@@ -876,19 +894,19 @@ scan_row(tracer::scene &SceneMesh, int image_width, int image_height, tracer::ca
     }
 }
 
-bvh_node *find_smallest_node_hit(bvh_node *parent, c_vec3f ori, c_vec3f dir, float *tnear, float *tfar)
-{
-    if (parent->primitive_count == 1) {
-        return parent;
-    }
-
-    if (parent->bbox.intersect(ori, dir, tnear, tfar)) {
-        parent = find_smallest_node_hit(parent->left, ori, dir, tnear, tfar);
-        if (!parent) {
-            parent = find_smallest_node_hit(parent->right, ori, dir, tnear, tfar);
-        }
-    }
-    else {
-        return NULL;
-    }
-}
+//bvh_node *find_smallest_node_hit(bvh_node *parent, c_vec3f ori, c_vec3f dir, float *tnear, float *tfar)
+//{
+//    if (parent->primitive_count == 1) {
+//        return parent;
+//    }
+//
+//    if (parent->bbox.intersect(ori, dir, tnear, tfar)) {
+//        parent = find_smallest_node_hit(parent->left, ori, dir, tnear, tfar);
+//        if (!parent) {
+//            parent = find_smallest_node_hit(parent->right, ori, dir, tnear, tfar);
+//        }
+//    }
+//    else {
+//        return NULL;
+//    }
+//}
