@@ -3,12 +3,12 @@
 current_dir=$( cd "$( dirname ${BASH_SOURCE[0]} )" && pwd )
 source ${current_dir}/set_env.sh
 
+OUT_DIR=${PROJECT_OUT_DIR}/sphere
 export MODELS_DIR=${PROJECT_BIN_DIR}/models
-mkdir -p ${PROJECT_OUT_DIR}
+mkdir -p ${OUT_DIR}
 
 run() {
-  suffix=$(echo $options | sed 's/[ -]//g')
-  outfile="${PROJECT_OUT_DIR}/output${suffix}.ppm"
+  outfile="${OUT_DIR}/output${suffix}.ppm"
   if [ -f $outfile ]; then
     echo "Deleting existing output at $outfile"
     rm $outfile
@@ -24,16 +24,19 @@ run() {
   fi
 }
 
-model="cornell/CornellBox-Original.obj"
+model="cornell/CornellBox-Sphere.obj"
 eye="0,1,2"
 look="0,1,0"
 program="ESCViewer2021"
-# Run threaded
-#options="--thread"
-# Flatten triangles from scene
-for options in {"--flat","--flat --thread"}
-do
-  run
+echo "running with no options"
+suffix="sequential"
+run
+
+for options in {"--thread","--bvh","--bvh --thread","--ispc"}
+  do
+    suffix=$(echo $options | sed 's/[ -]//g')
+    echo "running with $options"
+    run
 done
 
 

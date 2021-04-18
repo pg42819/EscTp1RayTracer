@@ -444,8 +444,8 @@ int main(int argc, char *argv[]) {
             continue;
         }
 
-        // --flat flattens the scenemesh into triangles
-        if (std::string(argv[arg]) == "--flat") {
+        // --bvh flattens the scenemesh into triangles and uses bvh
+        if (std::string(argv[arg]) == "--bvh") {
             flat = true;
             continue;
         }
