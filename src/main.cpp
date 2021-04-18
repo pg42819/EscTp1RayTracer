@@ -75,9 +75,9 @@ aabb computeMaxBox(const c_triangle *c_triangles, int begin, int end) {
                 
                 if(c_triangles[w].vertices[j].x < minVertex.x)
                     minVertex.x = c_triangles[w].vertices[j].x;
-                if(c_triangles[w].vertices[j].y > minVertex.y)
+                if(c_triangles[w].vertices[j].y < minVertex.y)
                     minVertex.y = c_triangles[w].vertices[j].y;
-                if(c_triangles[w].vertices[j].z > minVertex.z)
+                if(c_triangles[w].vertices[j].z < minVertex.z)
                     minVertex.z = c_triangles[w].vertices[j].z;
             }
         }
@@ -89,7 +89,7 @@ aabb computeMaxBox(const c_triangle *c_triangles, int begin, int end) {
 }
 
 bvh_node * buildBVH(bvh_node *tree, const tracer::scene &SceneMesh, int begin, int end, bool threaded) {
-    
+
     int middle = 0;
     middle += begin + (end-begin) / 2;
 
@@ -154,9 +154,11 @@ bvh_node * buildBVH(bvh_node *tree, const tracer::scene &SceneMesh, int begin, i
         }
     }
 
-    for (auto &thr : threads) {
+    if(threaded) {
+        for (auto &thr : threads) {
             thr.join();
         }
+    }
 
     return tree;
 }
@@ -437,21 +439,21 @@ int main(int argc, char *argv[]) {
     if (flat) {
         flatten_scene(SceneMesh);
 
+        auto start_time = std::chrono::high_resolution_clock::now();
         SceneMesh.tree = buildBVH(SceneMesh.tree, SceneMesh, 0, SceneMesh.num_triangles-1, threaded);
+        auto end_time = std::chrono::high_resolution_clock::now();
 
-        bvh_node *t = SceneMesh.tree;
-
-        while(t != NULL) {
-            std::cout << "STARTS --> " << t->start << " AND HAS #PRIMITIVES " << t->primitive_count << "\n";
-
-            t = t->right->left;
-        }
+    std::cerr << "\n Threaded  BVH: " << std::boolalpha << threaded << std::endl;
+    std::cerr <<   " Flattened BVH: " << std::boolalpha << flat << std::endl;
+    std::cerr << "\n Duration  : "
+              << std::chrono::duration_cast<std::chrono::milliseconds>(end_time -
+                                                                       start_time)
+                      .count()
+              << std::endl;
     }
 
     // start the clock!
     auto start_time = std::chrono::high_resolution_clock::now();
-
-    std::cout << SceneMesh.geometry.size() << " <-- THIS IS HOW MANY OBJS THERE ARE";
 
     // START HERE
     std::vector<std::thread> threads;
@@ -609,13 +611,13 @@ scan_row(tracer::scene &SceneMesh, int image_width, int image_height, tracer::ca
                 c_vec3f ori = vec3ToCVec3(ray.origin);
                 c_vec3f dir = vec3ToCVec3(ray.dir);
 
-                std::cout << "MIN X,Y,Z BBOX --> " << SceneMesh.tree->bbox._min.x << "," << SceneMesh.tree->bbox._min.y << "," << SceneMesh.tree->bbox._min.z << "\n";
+                //std::cout << "MIN X,Y,Z BBOX --> " << SceneMesh.tree->bbox._min.x << "," << SceneMesh.tree->bbox._min.y << "," << SceneMesh.tree->bbox._min.z << "\n";
 
-                std::cout << "MAX X,Y,Z BBOX --> " << SceneMesh.tree->bbox._max.x << "," << SceneMesh.tree->bbox._max.y << "," << SceneMesh.tree->bbox._max.z << "\n";
+                //std::cout << "MAX X,Y,Z BBOX --> " << SceneMesh.tree->bbox._max.x << "," << SceneMesh.tree->bbox._max.y << "," << SceneMesh.tree->bbox._max.z << "\n";
 
                 if(SceneMesh.tree->bbox.intersect(ori, dir, &tnear, &tfar)) {
 
-                    if(intersect(SceneMesh, ray.origin, ray.dir, t, u, v, geomID, primID)) {
+                    if(intersect_limits(SceneMesh, ray.origin, ray.dir, t, u, v, geomID, primID, SceneMesh.tree->start, SceneMesh.tree->primitive_count)) {
                     auto i = geomID;
                     auto f = primID;
                     auto face = SceneMesh.geometry[i].face_index[f];
