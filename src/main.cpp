@@ -29,6 +29,8 @@ scan_row(tracer::scene &SceneMesh, int image_width, int image_height, tracer::ca
          std::mt19937 &gen, std::uniform_real_distribution<float> &distrib, int h);
 
 
+bvh_node *find_smallest_node_hit(bvh_node *parent, c_vec3f ori, c_vec3f dir, float *tnear, float *tfar);
+
 c_vec3f vec3ToCVec3(tracer::vec3<float> input) {
     c_vec3f r;
 
@@ -694,6 +696,8 @@ scan_row(tracer::scene &SceneMesh, int image_width, int image_height, tracer::ca
 
                 //std::cout << "MAX X,Y,Z BBOX --> " << SceneMesh.tree->bbox._max.x << "," << SceneMesh.tree->bbox._max.y << "," << SceneMesh.tree->bbox._max.z << "\n";
 
+                bvh_node *found = SceneMesh.tree;
+                find_smallest_node_hit(found, ori, dir, &tnear, &tfar);
                 if(SceneMesh.tree->bbox.intersect(ori, dir, &tnear, &tfar)) {
 
                     if(intersect_limits(SceneMesh, ray.origin, ray.dir, t, u, v, geomID, primID, SceneMesh.tree->start, SceneMesh.tree->primitive_count)) {
@@ -769,5 +773,22 @@ scan_row(tracer::scene &SceneMesh, int image_width, int image_height, tracer::ca
 
         }
 
+    }
+}
+
+bvh_node *find_smallest_node_hit(bvh_node *parent, c_vec3f ori, c_vec3f dir, float *tnear, float *tfar)
+{
+    if (parent->primitive_count == 1) {
+        return parent;
+    }
+
+    if (parent->bbox.intersect(ori, dir, tnear, tfar)) {
+        parent = find_smallest_node_hit(parent->left, ori, dir, tnear, tfar);
+        if (!parent) {
+            parent = find_smallest_node_hit(parent->right, ori, dir, tnear, tfar);
+        }
+    }
+    else {
+        return NULL;
     }
 }
