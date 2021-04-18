@@ -327,6 +327,101 @@ bool occlusion(const tracer::scene &SceneMesh, const tracer::vec3<float> &ori,
   return false;
 }
 
+void renderBVH(tracer::scene &SceneMesh,bvh_node * tree, c_vec3f ori, c_vec3f dir, float *tnear, float *tfar, float t, 
+                float u, float v, size_t geomID, size_t primID, tracer::ray &ray, std::mt19937 &gen, std::uniform_real_distribution<float> &distrib, int h, tracer::vec3<float> *image, int image_width, int w) 
+{
+
+    auto start_time = std::chrono::high_resolution_clock::now();
+
+    if(tree->bbox.intersect(ori, dir, tnear, tfar)) {
+        if((tree->left == NULL) && (tree->right == NULL)) { // so this is a leaf node
+        if(intersect_limits(SceneMesh, ray.origin, ray.dir, t, u, v, geomID, primID, SceneMesh.tree->start, SceneMesh.tree->primitive_count)) {
+                    
+                    auto i = geomID;
+                    auto f = primID;
+                    auto face = SceneMesh.geometry[i].face_index[f];
+
+                    // find the normal vector for the face
+                    auto N = normalize(cross(SceneMesh.geometry[i].vertex[face[1]] -
+                                            SceneMesh.geometry[i].vertex[face[0]],
+                                            SceneMesh.geometry[i].vertex[face[2]] -
+                                            SceneMesh.geometry[i].vertex[face[0]]));
+
+                    if (!SceneMesh.geometry[i].normals.empty()) {
+                        auto N0 = SceneMesh.geometry[i].normals[face[0]];
+                        auto N1 = SceneMesh.geometry[i].normals[face[1]];
+                        auto N2 = SceneMesh.geometry[i].normals[face[2]];
+                        N = normalize(N1 * u + N2 * v + N0 * (1 - u - v));
+                    }
+
+                    for (auto &lightID : SceneMesh.light_sources) {
+                        auto light = SceneMesh.geometry[lightID];
+                        light.face_index.size();
+                        std::uniform_int_distribution<int> distrib1(
+                                0, light.face_index.size() - 1);
+
+                        // To draw a random variable from the distribution, you use the function call operator()
+                        // and pass in an instance of a random number engine, such as a Mersenne Twister.
+                        int faceID = distrib1(gen);
+                        const auto &v0 = light.vertex[faceID];
+                        const auto &v1 = light.vertex[faceID];
+                        const auto &v2 = light.vertex[faceID];
+
+                        auto P = v0 + ((v1 - v0) * float(distrib(gen)) +
+                                    (v2 - v0) * float(distrib(gen)));
+
+                        // hit is where along the vector it hits the face
+                        auto hit = ray.origin +
+                                ray.dir * (t - std::numeric_limits<float>::epsilon());
+                        auto L = P - hit;
+
+                        auto len = tracer::length(L);
+
+                        // 191 original: check time of flight to see if we have hit occlusion
+                        t = len - std::numeric_limits<float>::epsilon();
+
+                        L = tracer::normalize(L);
+
+                        auto mat = SceneMesh.geometry[i].object_material;
+                        auto c =
+                                (mat.ka * 0.5f + mat.ke) / float(SceneMesh.light_sources.size());
+
+                        if (occlusion(SceneMesh, hit, L, t))
+                            continue;
+
+                        auto d = dot(N, L);
+
+                        if (d <= 0)
+                            continue;
+
+                        auto H = normalize((N + L) * 2.f);
+
+                        c = c + (mat.kd * d + mat.ks * pow(dot(N, H), mat.Ns)) /
+                                float(SceneMesh.light_sources.size());
+
+                        // set pixel on the result image to the calculated color
+                        image[h * image_width + w].r += c.r;
+                        image[h * image_width + w].g += c.g;
+                        image[h * image_width + w].b += c.b;
+                    }
+                    
+                        }
+    } else {
+        renderBVH(SceneMesh, tree->right, ori, dir, tnear, tfar, t, u, v, geomID, primID, ray, gen, distrib, h, image, image_width, w);
+        renderBVH(SceneMesh, tree->left, ori, dir, tnear, tfar, t, u, v, geomID, primID, ray, gen, distrib, h, image, image_width, w);
+    }
+    }
+
+    auto end_time = std::chrono::high_resolution_clock::now();
+
+    std::cerr << "\n Duration  for render BVH: "
+              << std::chrono::duration_cast<std::chrono::milliseconds>(end_time -
+                                                                       start_time)
+                      .count()
+              << std::endl;
+
+}
+
 int main(int argc, char *argv[]) {
     std::string modelname;
     std::string outputname;
@@ -598,6 +693,7 @@ scan_row(tracer::scene &SceneMesh, int image_width, int image_height, tracer::ca
          tracer::vec3<float> *image,
          std::mt19937 &gen, std::uniform_real_distribution<float> &distrib, int h)
 {
+
     for (int w = 0; w < image_width; w++) {
         size_t geomID = -1;
         size_t primID = -1;
@@ -612,7 +708,6 @@ scan_row(tracer::scene &SceneMesh, int image_width, int image_height, tracer::ca
         float t = std::numeric_limits<float>::max();
         float u = 0;
         float v = 0;
-
         if(SceneMesh.num_triangles == 0) {
 
             // if this ray intersects a polygon on the object, get the id of the face and object
@@ -685,6 +780,7 @@ scan_row(tracer::scene &SceneMesh, int image_width, int image_height, tracer::ca
                     image[h * image_width + w].g += c.g;
                     image[h * image_width + w].b += c.b;
                 }
+
             }
         } else {
 
@@ -695,12 +791,15 @@ scan_row(tracer::scene &SceneMesh, int image_width, int image_height, tracer::ca
                 //std::cout << "MIN X,Y,Z BBOX --> " << SceneMesh.tree->bbox._min.x << "," << SceneMesh.tree->bbox._min.y << "," << SceneMesh.tree->bbox._min.z << "\n";
 
                 //std::cout << "MAX X,Y,Z BBOX --> " << SceneMesh.tree->bbox._max.x << "," << SceneMesh.tree->bbox._max.y << "," << SceneMesh.tree->bbox._max.z << "\n";
-
                 bvh_node *found = SceneMesh.tree;
-                find_smallest_node_hit(found, ori, dir, &tnear, &tfar);
-                if(SceneMesh.tree->bbox.intersect(ori, dir, &tnear, &tfar)) {
+                found = find_smallest_node_hit(found, ori, dir, &tnear, &tfar);
+
+                //renderBVH(SceneMesh, SceneMesh.tree, ori, dir, &tnear, &tfar, t, u, v, geomID, primID, ray, gen, distrib, h, image, image_width, w);
+
+                if(found->bbox.intersect(ori, dir, &tnear, &tfar)) {
 
                     if(intersect_limits(SceneMesh, ray.origin, ray.dir, t, u, v, geomID, primID, SceneMesh.tree->start, SceneMesh.tree->primitive_count)) {
+                    
                     auto i = geomID;
                     auto f = primID;
                     auto face = SceneMesh.geometry[i].face_index[f];
@@ -768,11 +867,12 @@ scan_row(tracer::scene &SceneMesh, int image_width, int image_height, tracer::ca
                         image[h * image_width + w].g += c.g;
                         image[h * image_width + w].b += c.b;
                     }
+                    
                         }
+                    
+
                 }
-
         }
-
     }
 }
 

@@ -68,9 +68,6 @@ void flatten_scene(tracer::scene &SceneMesh)
                 corner.z = geom.vertex[face[v]].z;
                 triangle.vertices[v] = corner;
 
-                std::cout << "O X é: " << corner.x << "\n";
-                std::cout << "O Y é: " << corner.y << "\n";
-                std::cout << "O Z é: " << corner.z << "\n";
             }
             // TODO do we need normals - or material?
             c_triangles.push_back(triangle);
