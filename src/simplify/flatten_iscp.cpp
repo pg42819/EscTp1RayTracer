@@ -1,10 +1,13 @@
 #include <algorithm>
+#include <iostream>
 #include <src/scene/scene.h>
 #include <src/scene/camera.h>
+#include "../debug.h"
 #include "../math/vec.h"
 //#include "c_triangle.h"
 // ispc compiler generated
 #include "trace_ispc.h"
+#include "flatten_iscp.h"
 //
 // Convert between CPP and C representations
 //
@@ -24,15 +27,14 @@ bool compare_triangle_x_iscp(const ispc::ispc_triangle &t1, const ispc::ispc_tri
  * every object in the original geometry
  * @param SceneMesh 
  */
-void flatten_scene_ispc(tracer::scene &SceneMesh,
-                        ispc::ispc_triangle **flat_triangles, int *num_triangles,
-                        ispc::ispc_light **flat_lights, int *num_lights,
-                        ispc::ispc_triangle **light_faces, int *num_light_faces)
+//void flatten_scene_ispc(tracer::scene &SceneMesh,
+//                        ispc::ispc_triangle *flat_triangles, int *num_triangles,
+//                        ispc::ispc_light *flat_lights, int *num_lights,
+//                        ispc::ispc_triangle *light_faces, int *num_light_faces,
+//                        int debug)
+void flatten_scene_ispc(tracer::scene &SceneMesh, FlatScene &flat_scene, int debug)
 {
-    std::vector<ispc::ispc_triangle> triangles;
-    std::vector<ispc::ispc_triangle> light_triangles;
-    std::vector<ispc::ispc_light> lights;
-    for (auto geom_id = 0; geom_id < SceneMesh.geometry.size(); geom_id++) {
+   for (auto geom_id = 0; geom_id < SceneMesh.geometry.size(); geom_id++) {
         // indexes of light face (triangles) in this object if this object is a light source
         std::vector<int> light_source_face_indexes;
 
@@ -82,36 +84,30 @@ void flatten_scene_ispc(tracer::scene &SceneMesh,
                 }
             }
 
-            triangles.push_back(triangle);
+            flat_scene.triangles.push_back(triangle);
 
             if (is_light) {
                 // keep a separate list of light-source triangles so that we
                 // can index into it after sorting the main list
-                light_triangles.push_back(triangle);
+                flat_scene.light_faces.push_back(triangle);
                 // store the index in the global light-source-triangle array on the
                 // light_source record for this geom
-                light_source_face_indexes.push_back(light_triangles.size() - 1); // index into light of this source
+                light_source_face_indexes.push_back(flat_scene.light_faces.size() - 1); // index into light of this source
             }
         } // each face (triangle)
 
-        ispc::ispc_light light;
-        light.geom_id = geom_id; // not really used
-        // store the indexes as a flat array for use in ispc
-        light.light_faces = light_source_face_indexes.data();
-        light.num_light_faces = light_source_face_indexes.size();
-        lights.push_back(light);
+        if (is_light) {
+            ispc::ispc_light light;
+            light.geom_id = geom_id; // not really used
+            // store the indexes as a flat array for use in ispc
+            light.light_faces = light_source_face_indexes.data();
+            light.num_light_faces = light_source_face_indexes.size();
+            flat_scene.lights.push_back(light);
+        }
     } // each geom
 
     // sort by x coordinate - makes for easher bvh tree building later
-    std::sort(triangles.begin(), triangles.end(), compare_triangle_x_iscp);
-
-    // attach the triangles to the scene as simple C array and size
-    *flat_triangles = triangles.data();
-    *num_triangles = triangles.size();
-    *flat_lights = lights.data();
-    *num_lights = lights.size();
-    *light_faces = light_triangles.data();
-    *num_light_faces = light_triangles.size();
+    std::sort(flat_scene.triangles.begin(), flat_scene.triangles.end(), compare_triangle_x_iscp);
 }
 
 

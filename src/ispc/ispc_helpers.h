@@ -1,7 +1,9 @@
 #pragma once
 // No math.h for ISPC :(
+#include "../debug.h"
 #define M_PI 3.1415926535f
 #define EPSILON 0.0001f
+
 // Note: not documented but some constants can found in source at:
 //
 // E.g.: UINT32_MAX  - max 32bit unsigned int (useful for random)
@@ -88,6 +90,7 @@ inline ispc_hit_info new_hit_info() {
     hit_info.t = 1e30f; // max float
     hit_info.u = 0.f;
     hit_info.v = 0.f;
+    return hit_info;
 }
 
 inline vec3 a2v(float array[3])

@@ -16,7 +16,7 @@ set(SRC_FILES
         scene/aabb.h scene/bvh.cpp scene/bvh.h
         scene/aabb.cpp
         main.cpp
-        )
+        debug.h)
 set(HDR_FILES )
 
 add_executable(ESCViewer2021 ${SRC_FILES} )
